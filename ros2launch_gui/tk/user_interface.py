@@ -48,7 +48,7 @@ class UserInterface(UserInterfaceBase):
             await asyncio.sleep(0.05)
         self.root.destroy()
 
-    def on_process_started(self, process_name, pid, action):
+    def on_process_started(self, process_name, pid, action: DescribedLaunchEntity):
         if not self.closing:
             self.process_manager.on_process_started(process_name, pid, action)
             self.launch_description_viewer.on_entity_process_started(action, process_name, pid)

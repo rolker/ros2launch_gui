@@ -22,5 +22,4 @@ class OnUserInterfaceEvent(BaseEventHandler):
         except Exception as e:
             if self._debug:
                 raise
-            return [LogInfo(msg='Exception while ui was handling {} event: {}'.format(event.name, str(e))
-)]
+            return [LogInfo(msg=f'Exception while ui was handling event: {event.name}, exception: {e}')]

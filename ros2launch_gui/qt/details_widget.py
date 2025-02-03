@@ -41,6 +41,10 @@ class DetailsWidget(QWidget):
         if process_name in self.process_output_widgets:
             self.process_output_widgets[process_name].on_process_io(process_name, text)
 
+    def on_process_exited(self, process_name, return_code):
+        if process_name in self.process_output_widgets:
+            self.process_output_widgets[process_name].on_process_io(process_name, f'Process exited with return code {return_code}')
+
     def show_all_processes_output(self):
         self.current_widget.hide()
         self.current_widget = self.all_process_output_widget

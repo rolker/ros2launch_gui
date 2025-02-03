@@ -15,12 +15,12 @@ from .launch_description_widget import LaunchDescriptionWidget
 
 
 class MainWindow(QMainWindow):
-    def __init__(self, closing_callback=None):
+    def __init__(self, ui: 'UserInterface'=None):
         super().__init__()
 
-        self.closing_callback = closing_callback
+        self._ui = ui
         self.setWindowTitle("ROS 2 Launch GUI")
-        self.launch_description_widget = LaunchDescriptionWidget(self)
+        self.launch_description_widget = LaunchDescriptionWidget(ui, self)
         self.details_widget = DetailsWidget(self)
 
         splitter = QSplitter()
@@ -36,6 +36,7 @@ class MainWindow(QMainWindow):
         self.launch_description_widget.on_entity_process_started(action, process_name, pid, lambda: self.details_widget.show_process_output(process_name))
 
     def on_process_exited(self, action, process_name, pid, return_code):
+        self.details_widget.on_process_exited(process_name, return_code)
         self.launch_description_widget.on_entity_process_exited(action, process_name, pid, return_code)
 
     def on_process_io(self, process_name, text):
@@ -48,8 +49,8 @@ class MainWindow(QMainWindow):
         self.launch_description_widget.on_execution_complete(entity)
 
     def closeEvent(self, event):
-        if self.closing_callback is not None:
-            self.closing_callback()
+        if self._ui is not None:
+            self._ui.on_close()
         event.accept()
 
 class UserInterface(UserInterfaceBase):
@@ -64,7 +65,7 @@ class UserInterface(UserInterfaceBase):
         self.closing = False
 
         self.app = QApplication([])
-        self.main_window = MainWindow(self.on_close)
+        self.main_window = MainWindow(self)
         self.main_window.resize(1280, 720)
         self.main_window.show()
 

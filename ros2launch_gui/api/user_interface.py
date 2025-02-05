@@ -21,6 +21,8 @@ from launch.events.process import RunningProcessEvent
 
 from launch.some_entities_type import SomeEntitiesType
 
+from launch_ros.events.lifecycle import ChangeState
+from launch_ros.events.lifecycle import StateTransition
 
 from .describe import DescribedLaunchEntity
 
@@ -40,6 +42,16 @@ class UserInterface:
             EmitEvent(event=QueryUserInterface()),
             EmitEvent(event=IncludeLaunchDescription(launch_description))
         ]
+        self._close_requested = False
+
+    def close(self) -> None:
+        """Request the GUI to close."""
+        self._close_requested = True
+
+    @property
+    def close_requested(self) -> bool:
+        """Check if the GUI has been requested to close."""
+        return self._close_requested
 
     def get_pending_actions(self) -> List[LaunchDescriptionEntity]:
         actions = self._pending_actions
@@ -69,6 +81,10 @@ class UserInterface:
         """Display a completion event in the GUI."""
         pass
 
+    def on_state_transition(self, entity: DescribedLaunchEntity, start_state: str, goal_state: str) -> None:
+        """Display a state transition in the GUI."""
+        pass
+
     def on_close(self):
         """Called when the GUI is closed."""
         self.add_pending_action(Shutdown())
@@ -82,8 +98,16 @@ class UserInterface:
                 self.on_process_exited(event.process_name, event.pid, DescribedLaunchEntity(event.action, context), event.returncode)
             elif isinstance(event, ProcessIO):
                 self.on_process_io(event.process_name, event.text)
-        if isinstance(event, ExecutionComplete):
+        elif isinstance(event, ExecutionComplete):
             self.on_execution_complete(DescribedLaunchEntity(event.action, context))
-        if isinstance(event, IncludeLaunchDescription):
+        elif isinstance(event, IncludeLaunchDescription):
             self.on_describe_launch_entity(DescribedLaunchEntity(event.launch_description, context))
+        elif isinstance(event, ChangeState):
+            print(f'ChangeState: Transition: {event.transition_id}')
+        elif isinstance(event, StateTransition):
+            self.on_state_transition(
+                DescribedLaunchEntity(event.action, context),
+                event.start_state,
+                event.goal_state
+            )
         return None

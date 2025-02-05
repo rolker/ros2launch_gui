@@ -12,6 +12,8 @@ class OnUserInterfaceEvent(BaseEventHandler):
 
     def handle(self, event, context):
         super().handle(event, context)
+        if self._ui.close_requested:
+            return None
         if isinstance(event, QueryUserInterface):
             return [TimerAction(
                     period=0.5,
@@ -21,5 +23,6 @@ class OnUserInterfaceEvent(BaseEventHandler):
             return self._ui.handle(event, context)
         except Exception as e:
             if self._debug:
+                self._ui.close()
                 raise
             return [LogInfo(msg=f'Exception while ui was handling event: {event.name}, exception: {e}')]

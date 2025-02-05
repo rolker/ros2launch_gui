@@ -48,6 +48,9 @@ class MainWindow(QMainWindow):
     def on_execution_complete(self, entity):
         self.launch_description_widget.on_execution_complete(entity)
 
+    def on_state_transition(self, entity, start_state, goal_state):
+        self.launch_description_widget.on_state_transition(entity, start_state, goal_state)
+
     def closeEvent(self, event):
         if self._ui is not None:
             self._ui.on_close()
@@ -90,6 +93,9 @@ class UserInterface(UserInterfaceBase):
 
     def on_execution_complete(self, entity):
         self.main_window.on_execution_complete(entity)
+
+    def on_state_transition(self, entity, start_state, goal_state):
+        self.main_window.on_state_transition(entity, start_state, goal_state)
 
     def on_close(self):
         self.closing = True

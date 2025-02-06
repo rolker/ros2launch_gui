@@ -11,7 +11,6 @@ def create_default_user_interface(
 ) -> UserInterface:
     """Create a ui for monitoring launch events."""
 
-    #from ros2launch_gui.tk import UserInterface
     from ros2launch_gui.qt import UserInterface
 
     return UserInterface(launch_description, debug=debug)

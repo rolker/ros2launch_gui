@@ -8,6 +8,8 @@ from launch.launch_introspector import format_action
 from launch.launch_introspector import format_substitutions
 from launch.actions import DeclareLaunchArgument
 from launch.actions import IncludeLaunchDescription
+from launch.utilities import normalize_to_list_of_substitutions
+from launch.utilities import perform_substitutions
 
 from launch_ros.actions import Node
 from launch_ros.actions import PushRosNamespace
@@ -47,6 +49,8 @@ class DescribedLaunchEntity:
             except NotImplementedError:
                 self.description = ''
 
+        self.conditional_children = []
+
         # IncludeLaunchDescription's describe_sub_entities() method returns temporary entities with different ids than the entities actually run, so try to get the real ones.
         if isinstance(launch_entity, IncludeLaunchDescription):
             try:
@@ -55,6 +59,8 @@ class DescribedLaunchEntity:
                 self.children = []
         else:
             self.children = [DescribedLaunchEntity(child) for child in launch_entity.describe_sub_entities()]
+            for condition, sub_entities in launch_entity.describe_conditional_sub_entities():
+                self.conditional_children.append((condition, [DescribedLaunchEntity(child) for child in sub_entities]))
 
         self.condition = None
         if isinstance(launch_entity, Action):
@@ -89,8 +95,8 @@ class DescribedLaunchEntity:
             self.description = "package: {}, executable: {}".format(launch_entity.node_package, launch_entity.node_executable)
         
         elif isinstance(launch_entity, PushRosNamespace):
-            self.label = 'namespace:'
-            self.description = describe_substitution(launch_entity.namespace, context)
+            self.label = describe_substitution(launch_entity.namespace, context)
+            self.description = describe_substitution(launch_entity.namespace, None)
 
 
 
@@ -109,5 +115,7 @@ def describe_condition(condition: Condition, context: LaunchContext) -> str:
 def describe_substitution(substitution, context: LaunchContext) -> str:
     if substitution is None:
         return ''
+    if context is not None:
+        return perform_substitutions(context, normalize_to_list_of_substitutions(substitution))
     return format_substitutions(substitution)
 

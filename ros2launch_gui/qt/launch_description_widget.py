@@ -72,6 +72,8 @@ class LaunchDescriptionWidget(QWidget):
 
         self.entity_items = {}
         self.process_items = {}
+        self.launch_arguments_items = {}
+        self.entity_condition_items = {}
 
 
     def on_item_selected(self, item, column):
@@ -94,32 +96,38 @@ class LaunchDescriptionWidget(QWidget):
             pid: int,
             selected_callback=None
     ) -> None:
+        if process_name in self.process_items:
+            process_item = self.process_items[process_name]
+        else:
+            process_item = QTreeWidgetItem(['Process', 'running', process_name, f'PID: {pid}'])
+            self.process_items[process_name] = process_item
         if entity.id in self.entity_items:
             item = self.entity_items[entity.id]
-            process_item = QTreeWidgetItem(item, ['Process', 'running', process_name, f'PID: {pid}'])
-            self.process_items[process_name] = process_item
-            process_item.setData(0, self.DetailsCallbackRole, selected_callback)
+            item.addChild(process_item)
             item.setExpanded(True)
-            process_item.setData(1, Qt.BackgroundRole, QBrush(QColor(100, 255, 100)))
-            process_item.setData(
-                0,
-                self.ContextMenuRole,
-                lambda menu: menu.addAction(
-                    f'Stop {process_name}',
-                    lambda: self._ui.add_pending_action(
-                        EmitEvent(
-                            event=SignalProcess(
-                                signal_number= signal.SIGINT,
-                                process_matcher=matches_pid(pid)
-                            )
+        else:
+            self.tree.addTopLevelItem(process_item)
+
+        process_item.setData(0, self.DetailsCallbackRole, selected_callback)
+        process_item.setData(1, Qt.BackgroundRole, QBrush(QColor(100, 255, 100)))
+        process_item.setData(
+            0,
+            self.ContextMenuRole,
+            lambda menu: menu.addAction(
+                f'Stop {process_name}',
+                lambda: self._ui.add_pending_action(
+                    EmitEvent(
+                        event=SignalProcess(
+                            signal_number= signal.SIGINT,
+                            process_matcher=matches_pid(pid)
                         )
                     )
                 )
             )
+        )
 
     def get_lifecycle_menu_items(self, menu: QMenu, node_name: str, current_state: str) -> None:
         for label, transition_id in self.lifecycle_transitions[current_state]:
-            print (f'Adding menu item for {label} {node_name} {transition_id}')
             menu.addAction(
                 f'{label} {node_name}',
                 lambda id=transition_id: self._ui.add_pending_action(
@@ -144,16 +152,20 @@ class LaunchDescriptionWidget(QWidget):
             item.setData(0, self.ContextMenuRole, None)
 
     def updated_launch_entity(self, launch_entity: DescribedLaunchEntity, status=None):
+        if launch_entity.condition is not None:
+            if launch_entity.id in self.entity_condition_items:
+                item = self.entity_condition_items[launch_entity.id]
+                item.setText(2, launch_entity.condition)
         if launch_entity.id in self.entity_items:
             item = self.entity_items[launch_entity.id]
             item.setText(2, launch_entity.label)
             item.setText(3, str(launch_entity.description))
-            status_text = status if status is not None else ''
-            item.setText(1, status_text)
+            if status is not None:
+                item.setText(1, status)
             if launch_entity.type_name == "IncludeLaunchDescription":
                 for child in launch_entity.children:
                     if child.id not in self.entity_items:
-                        self.add_launch_entity_to_tree(child, item)
+                        self.add_launch_entity_to_tree(child, launch_entity)
         for child in launch_entity.children:
             self.updated_launch_entity(child)
 
@@ -173,15 +185,43 @@ class LaunchDescriptionWidget(QWidget):
     def add_launch_entity_to_tree(
         self,
         launch_entity: DescribedLaunchEntity,
-        parent=None,
+        parent: DescribedLaunchEntity=None,
         status=None
     ):
         if launch_entity.id in self.entity_items:
             item = self.entity_items[launch_entity.id]
+            if status is not None:
+                item.setText(1, status)
         else:
-            item = QTreeWidgetItem([launch_entity.type_name, launch_entity.label, str(launch_entity.description), status])
+            status_text = status if status is not None else ''
+            item = QTreeWidgetItem([launch_entity.type_name, status_text, launch_entity.label, str(launch_entity.description), status])
+            parent_item = None
+            expand_parent = True
             if parent is not None:
-                parent.addChild(item)
+                if parent.id in self.entity_items:
+                    parent_item = self.entity_items[parent.id]
+                    if launch_entity.type_name == "DeclareLaunchArgument":
+                        if not parent.id in self.launch_arguments_items:
+                            self.launch_arguments_items[parent.id] = QTreeWidgetItem(['Launch Arguments', '', '', ''])
+                            parent_item.addChild(self.launch_arguments_items[parent.id])
+                        parent_item = self.launch_arguments_items[parent.id]
+                        expand_parent = False
+            if launch_entity.condition is not None:
+                if launch_entity.id in self.entity_condition_items:
+                    condition_item = self.entity_condition_items[launch_entity.id]
+                else:
+                    condition_item = QTreeWidgetItem(['Condition', '', launch_entity.condition, ''])
+                    self.entity_condition_items[launch_entity.id] = condition_item
+                    if parent_item is not None:
+                        parent_item.addChild(condition_item)
+                        parent_item.setExpanded(True)
+                    else:
+                        self.tree.addTopLevelItem(condition_item)
+                parent_item = condition_item
+            if parent_item is not None:
+                parent_item.addChild(item)
+                if expand_parent:
+                    parent_item.setExpanded(True)
             else:
                 self.tree.addTopLevelItem(item)
             item.setExpanded(True)
@@ -194,11 +234,12 @@ class LaunchDescriptionWidget(QWidget):
                 if status in self.lifecycle_transitions:
                     item.setData(0, self.ContextMenuRole, lambda menu: self.get_lifecycle_menu_items(menu, launch_entity.label, status))
             
-        status_text = status if status is not None else ''
-        item.setText(1, status_text)
 
         for child in launch_entity.children:
-            self.add_launch_entity_to_tree(child, item)
+            self.add_launch_entity_to_tree(child, launch_entity)
+        for condition, sub_entities in launch_entity.conditional_children:
+            for sub_entity in sub_entities:
+                self.add_launch_entity_to_tree(sub_entity, launch_entity)
 
     def show_context_menu(self, pos):
         item = self.tree.itemAt(pos)

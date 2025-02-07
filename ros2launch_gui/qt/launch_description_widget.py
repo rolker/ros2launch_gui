@@ -105,9 +105,13 @@ class LaunchDescriptionWidget(QWidget):
             item = self.entity_items[entity.id]
             item.addChild(process_item)
             item.setExpanded(True)
+            if entity.type_name == "LifecycleNode":
+                self.on_state_transition(entity, 'unknown', 'unconfigured')
         else:
             self.tree.addTopLevelItem(process_item)
 
+        process_item.setText(1, 'running')
+        process_item.setText(3, f'PID: {pid}')
         process_item.setData(0, self.DetailsCallbackRole, selected_callback)
         process_item.setData(1, Qt.BackgroundRole, QBrush(QColor(100, 255, 100)))
         process_item.setData(

@@ -102,8 +102,6 @@ class UserInterface:
             self.on_execution_complete(DescribedLaunchEntity(event.action, context))
         elif isinstance(event, IncludeLaunchDescription):
             self.on_describe_launch_entity(DescribedLaunchEntity(event.launch_description, context))
-        elif isinstance(event, ChangeState):
-            print(f'ChangeState: Transition: {event.transition_id}')
         elif isinstance(event, StateTransition):
             self.on_state_transition(
                 DescribedLaunchEntity(event.action, context),

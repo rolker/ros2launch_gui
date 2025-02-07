@@ -19,7 +19,16 @@ from launch.events.process import ProcessExited
 from launch.events.process import ProcessIO
 from launch.events.process import RunningProcessEvent
 
-from launch.some_entities_type import SomeEntitiesType
+import os
+
+# Get ROS distro
+__installed_distro = os.environ.get("ROS_DISTRO", "").lower()
+
+if __installed_distro in ["humble", "galactic", "foxy"]:
+    # Get some_action_type for older distributions
+    from launch.some_actions_type import SomeActionsType as SomeEntitiesType
+else:
+    from launch.some_entities_type import SomeEntitiesType
 
 from launch_ros.events.lifecycle import ChangeState
 from launch_ros.events.lifecycle import StateTransition

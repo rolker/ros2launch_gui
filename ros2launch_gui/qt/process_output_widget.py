@@ -1,5 +1,5 @@
 
-from python_qt_binding.QtWidgets import QTextEdit
+from python_qt_binding.QtWidgets import QPlainTextEdit
 from python_qt_binding.QtWidgets import QVBoxLayout
 from python_qt_binding.QtWidgets import QWidget
 
@@ -12,7 +12,7 @@ class ProcessOutputWidget(QWidget):
 
         self.show_process_name = show_process_name
 
-        self.text_edit = QTextEdit(self)
+        self.text_edit = QPlainTextEdit(self)
         self.text_edit.setReadOnly(True)
 
         layout = QVBoxLayout()
@@ -23,6 +23,6 @@ class ProcessOutputWidget(QWidget):
 
     def on_process_io(self, process_name, text):
         if self.show_process_name:
-            self.text_edit.append(f'[{process_name}] {text}')
+            self.text_edit.appendPlainText(f'[{process_name}] {text}')
         else: 
-            self.text_edit.append(text)
+            self.text_edit.appendPlainText(text)

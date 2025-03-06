@@ -2,6 +2,7 @@ from launch.actions import TimerAction
 from launch.actions import EmitEvent
 from launch.actions import LogInfo
 from launch.event_handler import BaseEventHandler
+from launch.events import Shutdown
 from ros2launch_gui.events import QueryUserInterface
 
 class OnUserInterfaceEvent(BaseEventHandler):
@@ -12,7 +13,11 @@ class OnUserInterfaceEvent(BaseEventHandler):
 
     def handle(self, event, context):
         super().handle(event, context)
-        if self._ui.close_requested:
+        if self._ui is None:
+            return None
+        if isinstance(event, Shutdown):
+            self._ui.close()
+            self._ui = None
             return None
         if isinstance(event, QueryUserInterface):
             return [TimerAction(
@@ -24,5 +29,6 @@ class OnUserInterfaceEvent(BaseEventHandler):
         except Exception as e:
             if self._debug:
                 self._ui.close()
+                self._ui = None
                 raise
             return [LogInfo(msg=f'Exception while ui was handling event: {event.name}, exception: {e}')]

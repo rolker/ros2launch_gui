@@ -96,7 +96,9 @@ class UserInterface:
 
     def on_close(self):
         """Called when the GUI is closed."""
-        self.add_pending_action(Shutdown())
+        # only shutdown the launch if close was requested from the gui
+        if not self.close_requested:
+            self.add_pending_action(Shutdown())
 
     def handle(self, event: Event, context: LaunchContext) -> Optional[SomeEntitiesType]:
         """Handle a launch event."""

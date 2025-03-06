@@ -76,6 +76,8 @@ class UserInterface(UserInterfaceBase):
 
     async def run_qt(self, *args, **kwargs):
         while not self.closing:
+            if self.close_requested:
+                self.main_window.close()
             self.app.processEvents()
             await asyncio.sleep(0.05)
 

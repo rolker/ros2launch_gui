@@ -6,10 +6,13 @@ from launch.events import Shutdown
 from ros2launch_gui.events import QueryUserInterface
 
 class OnUserInterfaceEvent(BaseEventHandler):
-    def __init__(self, ui, debug: bool = False):
+    def __init__(self, ui, debug: bool = False, update_rate: float = 5.0):
         super().__init__(matcher=lambda event: True)
         self._ui = ui
         self._debug = debug
+        if update_rate <= 0.0:
+            raise ValueError("Update rate must be greater than 0.0")
+        self._period = 1.0 / update_rate
 
     def handle(self, event, context):
         super().handle(event, context)
@@ -20,8 +23,9 @@ class OnUserInterfaceEvent(BaseEventHandler):
             self._ui = None
             return None
         if isinstance(event, QueryUserInterface):
+            self._ui.spin_once()
             return [TimerAction(
-                    period=0.5,
+                    period=self._period,
                     actions=[EmitEvent(event=QueryUserInterface())])
             ] + self._ui.get_pending_actions()
         try:

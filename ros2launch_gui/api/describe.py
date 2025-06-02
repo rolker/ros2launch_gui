@@ -71,7 +71,15 @@ class DescribedLaunchEntity:
             self.description = launch_entity.launch_description_source.location
             self.launch_arguments = []
             for la in launch_entity.launch_arguments:
-                self.launch_arguments.append((describe_substitution(la[0], context), describe_substitution(la[1], context)))
+                try:
+                    la0 = describe_substitution(la[0], context)
+                except Exception as e:
+                    la0 = str(la[0])
+                try:
+                    la1 = describe_substitution(la[1], context)
+                except Exception as e:
+                    la1 = str(la[1])
+                self.launch_arguments.append((la0, la1))
 
         elif isinstance(launch_entity, DeclareLaunchArgument):
             self.label = str(launch_entity.name)
@@ -108,7 +116,10 @@ def describe_condition(condition: Condition, context: LaunchContext) -> str:
     if condition is not None:
         value = '?'
         if context is not None:
-            value = condition.evaluate(context)
+            try:
+                value = condition.evaluate(context)
+            except Exception as e:
+                value = str(e)
         return '{}: {}'.format(type(condition).__name__, value)
     return ''
 
@@ -116,6 +127,10 @@ def describe_substitution(substitution, context: LaunchContext) -> str:
     if substitution is None:
         return ''
     if context is not None:
-        return perform_substitutions(context, normalize_to_list_of_substitutions(substitution))
+        try:
+            return perform_substitutions(context, normalize_to_list_of_substitutions(substitution))
+        except Exception as e:
+            pass
+    
     return format_substitutions(substitution)
 

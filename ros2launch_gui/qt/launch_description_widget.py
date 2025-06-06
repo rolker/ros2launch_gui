@@ -84,9 +84,9 @@ class LaunchDescriptionWidget(QWidget):
     def create_tree_widget(self):
         tree = QTreeWidget(self)
         tree.setHeaderLabels(['Launch Entity', 'Status', 'Name', 'Description'])
-        tree.header().resizeSection(0, 350)
+        tree.header().resizeSection(0, 200)
         tree.header().resizeSection(1, 150)
-        tree.header().resizeSection(2, 400)
+        tree.header().resizeSection(2, 275)
 
         tree.itemActivated.connect(self.on_item_selected)
         tree.itemClicked.connect(self.on_item_selected)
@@ -152,7 +152,7 @@ class LaunchDescriptionWidget(QWidget):
             process_items[tree_type].setText(1, 'running')
             process_items[tree_type].setText(3, f'PID: {pid}')
             process_items[tree_type].setData(0, self.DetailsCallbackRole, selected_callback)
-            process_items[tree_type].setData(3, Qt.BackgroundRole, QBrush(QColor(100, 255, 100)))
+            process_items[tree_type].setData(1, Qt.BackgroundRole, QBrush(QColor(150, 255, 100)))
             process_items[tree_type].setData(
                 0,
                 self.ContextMenuRole,
@@ -191,9 +191,9 @@ class LaunchDescriptionWidget(QWidget):
                 item = items[tree_type]
                 item.setText(1, f'exit: {return_code}')
                 if return_code == 0:
-                    item.setData(3, Qt.BackgroundRole, QBrush(QColor(210, 255, 200)))
+                    item.setData(1, Qt.BackgroundRole, QBrush(QColor(150, 100, 100)))
                 else:
-                    item.setData(3, Qt.BackgroundRole, QBrush(QColor(255, 128, 128)))
+                    item.setData(1, Qt.BackgroundRole, QBrush(QColor(255, 128, 128)))
                 item.setData(0, self.ContextMenuRole, None)
 
     def updated_launch_entity(self, launch_entity: DescribedLaunchEntity, status=None):
@@ -225,9 +225,9 @@ class LaunchDescriptionWidget(QWidget):
                 if item is not None:
                     item.setText(1, f'{goal_state}')
                     if goal_state == 'active':
-                        item.setData(1, Qt.BackgroundRole, QBrush(QColor(100, 255, 100)))
+                        item.setData(1, Qt.BackgroundRole, QBrush(QColor(100, 255, 150)))
                     else:
-                        item.setData(1, Qt.BackgroundRole, QBrush(QColor(255, 255, 100)))
+                        item.setData(1, Qt.BackgroundRole, QBrush(QColor(255, 255, 150)))
                     if goal_state in self.lifecycle_transitions:
                         item.setData(0, self.ContextMenuRole, lambda menu: self.get_lifecycle_menu_items(menu, entity.label, goal_state))
                     else:
@@ -309,7 +309,7 @@ class LaunchDescriptionWidget(QWidget):
         status: str
     ):
         if launch_entity.type_name == "LifecycleNode":
-            item.setData(1, Qt.BackgroundRole, QBrush(QColor(255, 255, 100)))
+            item.setData(1, Qt.BackgroundRole, QBrush(QColor(255, 255, 150)))
             if status is None:
                 # assuming lifecycle node is unconfigured until we know otherwise
                 status = 'unconfigured'

@@ -126,11 +126,11 @@ def describe_condition(condition: Condition, context: LaunchContext) -> str:
 def describe_substitution(substitution, context: LaunchContext) -> str:
     if substitution is None:
         return ''
-    if context is not None:
-        try:
+    try:
+        if context is not None:
             return perform_substitutions(context, normalize_to_list_of_substitutions(substitution))
-        except Exception as e:
-            pass
-    
-    return format_substitutions(substitution)
-
+        else:
+            return format_substitutions(substitution)
+    except Exception as e:
+        print(e)
+        return str(substitution)

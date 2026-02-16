@@ -36,6 +36,7 @@ class DescribedLaunchEntity:
             self.children = []
             self.conditional_children = []
             self.condition = None
+            self.launch_arguments = []
             return
 
         self.id = id(launch_entity)

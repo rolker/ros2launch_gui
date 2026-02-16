@@ -33,6 +33,10 @@ class DescribedLaunchEntity:
             self.label = ''
             self.description = ''
             self.id = 0
+            self.children = []
+            self.conditional_children = []
+            self.condition = None
+            return
 
         self.id = id(launch_entity)
 

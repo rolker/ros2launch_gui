@@ -60,7 +60,7 @@ class UserInterface(UserInterfaceBase):
 
     def on_process_io(self, process_name, text):
         if not self.closing:
-            self.process_manager.on_process_io(process_name, text)
+            self.process_manager.on_process_io(process_name, text.decode())
 
     def on_describe_launch_entity(self, entity):
         if not self.closing:

@@ -64,7 +64,7 @@ class ProcessIOView(ttk.Frame):
         self.text.config(state='normal')
         if self.show_process_name:
             for line in data.splitlines():
-                self.text.insert('end', '[{}] {}\n'.format(process_name, line.decode()))
+                self.text.insert('end', '[{}] {}\n'.format(process_name, line))
         else:
             self.text.insert('end', data)
         #self.text.see('end')

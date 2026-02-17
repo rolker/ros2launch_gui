@@ -35,5 +35,5 @@ This is a work in progress...
 ## Design
 
 The system interfaces with the launch system using the DisplayUserInterface action. This action will create a user interface and return actions from it. It also contains the LaunchDescription to display.
-The default user interface supplies an event handler so the ui can react to launch events. The OnUserInterfaceEvent handler will forward events to the ui and respond to QueryUserInterface events to send pending events from the ui to the launch system.
+The default user interface registers targeted event handlers — one per event type — so the UI only reacts to relevant launch events. An OnQueryUserInterface handler responds to QueryUserInterface events to send pending actions from the UI to the launch system.
 In order for the ui to be able to send events to the launch system, TimerActions are used to periodically send QueryUserInterface events allowing the launch system to regularly check for new ui actions.

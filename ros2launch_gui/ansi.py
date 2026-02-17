@@ -16,37 +16,73 @@ ANSI_COLOR_MAP = {
 ansi_color_re = re.compile(r'\033\[([0-9;]*)m')
 
 
-def ansi_to_html(text):
-    matches = ansi_color_re.match(text)
-    if not matches:
-        return text
-    codes = matches.group(1).split(';')
-    # remove the ANSI escape codes from the text
-    text = ansi_color_re.sub('', text)
-    if not codes:
-        return text
+def _parse_codes(codes):
+    """Parse ANSI code list into (modifier, color) tuple.
 
+    Returns (modifier_tag, color_hex) where modifier_tag is 'b', 'i', 'u',
+    or None, and color_hex is an HTML color string or None.
+    """
     modifier = None
-    color_code = None
-    # reset case
-    if codes[0] == '0':
-        return text
-    # color + modifier
-    if len(codes) > 1:
-        modifier = codes[0]
-        color_code = ANSI_COLOR_MAP.get(codes[1])
-    # only color code present
-    else:
-        color_code = ANSI_COLOR_MAP.get(codes[0])
+    color = None
 
-    html_start = f'<span style="color: {color_code}">'
-    html_end = '</span>'
-    if modifier == '1':
-        html_text = f'{html_start}<b>{text}</b>{html_end}'
-    elif modifier == '3':
-        html_text = f'{html_start}<i>{text}</i>{html_end}'
-    elif modifier == '4':
-        html_text = f'{html_start}<u>{text}</u>{html_end}'
-    else:
-        html_text = f'{html_start}{text}{html_end}'
-    return html_text
+    for code in codes:
+        if code == '1':
+            modifier = 'b'
+        elif code == '3':
+            modifier = 'i'
+        elif code == '4':
+            modifier = 'u'
+        elif code in ANSI_COLOR_MAP:
+            color = ANSI_COLOR_MAP[code]
+
+    return modifier, color
+
+
+def ansi_to_html(text):
+    """Convert ANSI color codes in text to HTML spans.
+
+    Handles multiple color regions per line, mid-line color changes,
+    reset codes, and modifier+color combinations.
+    """
+    parts = ansi_color_re.split(text)  # [text, codes, text, codes, ...]
+    if len(parts) == 1:
+        return text  # no ANSI codes — fast path
+
+    result = []
+    in_span = False
+    pending_modifier = None
+
+    for i, part in enumerate(parts):
+        if i % 2 == 1:
+            # ANSI code group (captured group from split)
+            if in_span:
+                result.append('</span>')
+                in_span = False
+                pending_modifier = None
+
+            codes = part.split(';')
+            if codes == ['0'] or codes == ['']:
+                # Reset or empty — just close the span (already done above)
+                continue
+
+            modifier, color = _parse_codes(codes)
+            if color:
+                result.append(f'<span style="color: {color}">')
+                in_span = True
+                pending_modifier = modifier
+            # If no recognized color, skip (gracefully strip unknown codes)
+        else:
+            # Text segment
+            if part:
+                if pending_modifier and in_span:
+                    result.append(
+                        f'<{pending_modifier}>{part}</{pending_modifier}>'
+                    )
+                else:
+                    result.append(part)
+                pending_modifier = None
+
+    if in_span:
+        result.append('</span>')
+
+    return ''.join(result)

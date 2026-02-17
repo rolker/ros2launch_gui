@@ -1,5 +1,5 @@
-from .on_user_interface_event import OnUserInterfaceEvent
+from .on_query_user_interface import OnQueryUserInterface
 
 __all__ = [
-    'OnUserInterfaceEvent',
+    'OnQueryUserInterface',
 ]

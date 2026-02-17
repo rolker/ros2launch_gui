@@ -1,5 +1,5 @@
 #import pytest
-from ros2launch_gui.qt.process_output_widget import ansi_to_html
+from ros2launch_gui.ansi import ansi_to_html
 
 def test_plain_text_to_html():
     input = "my text"

@@ -47,7 +47,7 @@ class UserInterface:
             debug: bool = False
     ):
         
-        if(debug):
+        if debug:
             ui_handler = OnUserInterfaceEvent(self, debug=True, update_rate=1.0)
         else:
             ui_handler = OnUserInterfaceEvent(self)

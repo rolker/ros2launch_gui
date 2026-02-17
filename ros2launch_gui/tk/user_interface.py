@@ -42,9 +42,14 @@ class UserInterface(UserInterfaceBase):
 
         self.add_pending_action(OpaqueCoroutine(coroutine=self.run_tk))
 
+    def spin_once(self):
+        if self.close_requested:
+            self.closing = True
+        self.root.update()
+
     async def run_tk(self, *args, **kwargs):
         while not self.closing:
-            self.root.update()
+            self.spin_once()
             await asyncio.sleep(0.05)
         self.root.destroy()
 

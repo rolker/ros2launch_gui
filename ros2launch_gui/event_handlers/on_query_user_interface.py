@@ -12,6 +12,8 @@ class OnQueryUserInterface(BaseEventHandler):
         super().__init__(
             matcher=lambda event: isinstance(event, QueryUserInterface)
         )
+        if period <= 0.0:
+            raise ValueError('period must be > 0.0')
         self._ui = ui
         self._period = period
 

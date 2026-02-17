@@ -1,15 +1,10 @@
-import asyncio
-
 from python_qt_binding.QtWidgets import QApplication
 from python_qt_binding.QtWidgets import QMainWindow
 from python_qt_binding.QtWidgets import QSplitter
 
+from launch import LaunchDescription
 
 from ..api import UserInterface as UserInterfaceBase
-
-from launch import LaunchDescription
-from launch.actions import OpaqueCoroutine
-
 from .details_widget import DetailsWidget
 from .launch_description_widget import LaunchDescriptionWidget
 
@@ -56,34 +51,26 @@ class MainWindow(QMainWindow):
             self._ui.on_close()
         event.accept()
 
+
 class UserInterface(UserInterfaceBase):
     def __init__(
             self,
             launch_description: LaunchDescription,
             debug: bool = False,
-           
     ):
         super().__init__(launch_description, debug)
-
-        self.closing = False
 
         self.app = QApplication([])
         self.main_window = MainWindow(self)
         self.main_window.resize(1280, 720)
         self.main_window.show()
 
-        self.add_pending_action(OpaqueCoroutine(coroutine=self.run_qt))
-
-    async def run_qt(self, *args, **kwargs):
-        while not self.closing:
-            self.spin_once()
-            await asyncio.sleep(0.05)
-
     def spin_once(self):
-        if self.close_requested:
-            self.main_window.close()
         self.app.processEvents()
 
+    def close(self):
+        super().close()
+        self.main_window.close()
 
     def on_process_started(self, process_name, pid, action):
         self.main_window.on_process_started(action, process_name, pid)
@@ -104,6 +91,4 @@ class UserInterface(UserInterfaceBase):
         self.main_window.on_state_transition(entity, start_state, goal_state)
 
     def on_close(self):
-        self.closing = True
         super().on_close()
-        

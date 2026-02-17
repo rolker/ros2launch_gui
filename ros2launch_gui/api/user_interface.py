@@ -46,12 +46,22 @@ class UserInterface:
             launch_description: LaunchDescription,
             debug: bool = False
     ):
+        
+        if debug:
+            ui_handler = OnUserInterfaceEvent(self, debug=True, update_rate=1.0)
+        else:
+            ui_handler = OnUserInterfaceEvent(self)
         self._pending_actions = [
-            RegisterEventHandler(OnUserInterfaceEvent(self, debug)),
+            RegisterEventHandler(ui_handler),
             EmitEvent(event=QueryUserInterface()),
             EmitEvent(event=IncludeLaunchDescription(launch_description))
         ]
         self._close_requested = False
+
+    def spin_once(self) -> None:
+        """Process a single iteration of the GUI event loop."""
+        # This method should be overridden by subclasses to implement the GUI event loop
+        raise NotImplementedError("Subclasses must implement spin_once()")
 
     def close(self) -> None:
         """Request the GUI to close."""

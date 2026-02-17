@@ -76,10 +76,14 @@ class UserInterface(UserInterfaceBase):
 
     async def run_qt(self, *args, **kwargs):
         while not self.closing:
-            if self.close_requested:
-                self.main_window.close()
-            self.app.processEvents()
+            self.spin_once()
             await asyncio.sleep(0.05)
+
+    def spin_once(self):
+        if self.close_requested:
+            self.main_window.close()
+        self.app.processEvents()
+
 
     def on_process_started(self, process_name, pid, action):
         self.main_window.on_process_started(action, process_name, pid)

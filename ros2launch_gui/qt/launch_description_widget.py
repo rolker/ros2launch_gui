@@ -191,7 +191,7 @@ class LaunchDescriptionWidget(QWidget):
                 item = items[tree_type]
                 item.setText(1, f'exit: {return_code}')
                 if return_code == 0:
-                    item.setData(1, Qt.BackgroundRole, QBrush(QColor(150, 100, 100)))
+                    item.setData(1, Qt.BackgroundRole, QBrush(QColor(200, 255, 200)))
                 else:
                     item.setData(1, Qt.BackgroundRole, QBrush(QColor(255, 128, 128)))
                 item.setData(0, self.ContextMenuRole, None)

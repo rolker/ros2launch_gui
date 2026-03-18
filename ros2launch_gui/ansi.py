@@ -1,15 +1,18 @@
+import html
 import re
 
-# ANSI color code mapping to HTML colors
+# ANSI color code mapping to HTML colors.
+# Codes 30 (Black) and 37 (White) are remapped to dark colors for
+# readability on the white Qt widget background.
 ANSI_COLOR_MAP = {
-    '30': '#FFFFFF',  # Black
+    '30': '#000000',  # Black
     '31': '#FF0000',  # Red
     '32': '#00FF00',  # Green
     '33': '#FF7F00',  # Yellow (actually Orange for better readability)
     '34': '#0000FF',  # Blue
     '35': '#FF00FF',  # Magenta
     '36': '#00FFFF',  # Cyan
-    '37': '#FFFFFF',  # White (actually Black to see it on white background)
+    '37': '#000000',  # White (remapped to black for white background)
 }
 
 # Regular expression to match ANSI escape codes
@@ -46,7 +49,7 @@ def ansi_to_html(text):
     """
     parts = ansi_color_re.split(text)  # [text, codes, text, codes, ...]
     if len(parts) == 1:
-        return text  # no ANSI codes — fast path
+        return html.escape(text)  # no ANSI codes — fast path
 
     result = []
     in_span = False
@@ -75,11 +78,12 @@ def ansi_to_html(text):
             # Text segment
             if part:
                 if pending_modifier and in_span:
+                    escaped = html.escape(part)
                     result.append(
-                        f'<{pending_modifier}>{part}</{pending_modifier}>'
+                        f'<{pending_modifier}>{escaped}</{pending_modifier}>'
                     )
                 else:
-                    result.append(part)
+                    result.append(html.escape(part))
                 pending_modifier = None
 
     if in_span:

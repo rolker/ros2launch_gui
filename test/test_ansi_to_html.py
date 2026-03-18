@@ -1,4 +1,3 @@
-#import pytest
 from ros2launch_gui.ansi import ansi_to_html
 
 def test_plain_text_to_html():

@@ -14,11 +14,12 @@ class ProcessListItem(urwid.WidgetWrap):
         self._status = self.RUNNING
 
         self._status_widget = urwid.Text(self._status)
+        self._pid_widget = urwid.Text(f'pid:{pid}')
         cols = urwid.Columns([
             ('fixed', 4, urwid.Text(f'[{shortcut}]')),
             ('weight', 1, urwid.Text(name)),
             ('fixed', 12, self._status_widget),
-            ('fixed', 12, urwid.Text(f'pid:{pid}')),
+            ('fixed', 12, self._pid_widget),
         ], dividechars=1)
         super().__init__(urwid.AttrMap(cols, None, focus_map='focused'))
 
@@ -49,6 +50,7 @@ class ProcessList(urwid.ListBox):
         if name in self._items:
             existing = self._items[name]
             existing.pid = pid
+            existing._pid_widget.set_text(f'pid:{pid}')
             existing._status = ProcessListItem.RUNNING
             existing._status_widget.set_text(existing._status)
             return

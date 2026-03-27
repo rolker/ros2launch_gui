@@ -125,7 +125,6 @@ class TestTuiUserInterface(unittest.TestCase):
 
         view = OutputView()
         view.MAX_PER_PROCESS = 5
-        view.MAX_TOTAL_LINES = 100
         view._filter = 'node_a'
 
         for i in range(10):

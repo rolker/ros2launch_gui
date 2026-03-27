@@ -6,8 +6,9 @@ import urwid
 class OutputView(urwid.ListBox):
     """Log output view with per-process and total scrollback caps.
 
-    Lines are stored in both a global deque and per-process deques so that
-    filter switching is O(1) rebuild from the relevant deque.  Total memory
+    Lines are stored in both a global deque and per-process deques.  Selecting
+    the backing deque for a given filter is O(1), and rebuilding the visible
+    list from that deque is O(n) in the number of buffered lines.  Total memory
     may exceed MAX_TOTAL_LINES when many processes are active (bounded by
     MAX_TOTAL_LINES + num_processes * MAX_PER_PROCESS).
     """

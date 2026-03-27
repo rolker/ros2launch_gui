@@ -87,6 +87,52 @@ class TestTuiUserInterface(unittest.TestCase):
 
         ui.close()
 
+    @patch('urwid.MainLoop')
+    @patch('urwid.raw_display.Screen')
+    def test_process_respawn_reuses_row(self, mock_screen_cls, mock_loop_cls):
+        mock_screen_cls.return_value = MagicMock()
+        mock_loop = MagicMock()
+        mock_loop_cls.return_value = mock_loop
+        mock_loop.screen = mock_screen_cls.return_value
+
+        from ros2launch_gui.tui.user_interface import UserInterface
+
+        ld = LaunchDescription()
+        ui = UserInterface(ld)
+
+        action = MagicMock()
+        ui.on_process_started('node_a', 100, action)
+        ui.on_process_exited('node_a', 100, action, 1)
+        # Respawn with new pid
+        ui.on_process_started('node_a', 200, action)
+
+        assert len(ui.process_list._walker) == 1
+        item = ui.process_list._items['node_a']
+        assert item.pid == 200
+        assert item._status == item.RUNNING
+
+        ui.close()
+
+    @patch('urwid.MainLoop')
+    @patch('urwid.raw_display.Screen')
+    def test_filtered_scrollback_cap(self, mock_screen_cls, mock_loop_cls):
+        mock_screen_cls.return_value = MagicMock()
+        mock_loop = MagicMock()
+        mock_loop_cls.return_value = mock_loop
+        mock_loop.screen = mock_screen_cls.return_value
+
+        from ros2launch_gui.tui.output_view import OutputView
+
+        view = OutputView()
+        view.MAX_PER_PROCESS = 5
+        view.MAX_TOTAL_LINES = 100
+        view._filter = 'node_a'
+
+        for i in range(10):
+            view.add_line('node_a', f'line {i}')
+
+        assert len(view._walker) == 5
+
 
 if __name__ == '__main__':
     unittest.main()

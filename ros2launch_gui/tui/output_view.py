@@ -44,7 +44,8 @@ class OutputView(urwid.ListBox):
 
     def _append_widget(self, name, text):
         self._walker.append(self._make_widget(name, text))
-        while len(self._walker) > self.MAX_TOTAL_LINES:
+        cap = self.MAX_PER_PROCESS if self._filter else self.MAX_TOTAL_LINES
+        while len(self._walker) > cap:
             del self._walker[0]
         self._scroll_to_bottom()
 

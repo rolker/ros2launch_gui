@@ -46,6 +46,12 @@ class ProcessList(urwid.ListBox):
         super().__init__(self._walker)
 
     def add_process(self, name, pid):
+        if name in self._items:
+            existing = self._items[name]
+            existing.pid = pid
+            existing._status = ProcessListItem.RUNNING
+            existing._status_widget.set_text(existing._status)
+            return
         shortcut = chr(self._next_shortcut) \
             if self._next_shortcut <= ord('z') else '?'
         if self._next_shortcut <= ord('z'):

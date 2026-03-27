@@ -21,6 +21,7 @@ setup(
     entry_points={
         'ros2launch.option': [
           'gui = ros2launch_gui.option.gui:GuiOption',
+          'tui = ros2launch_gui.option.tui:TuiOption',
         ],
     },
 )

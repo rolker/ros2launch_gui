@@ -8,6 +8,7 @@
   <license>Apache-2.0</license>
 
   <depend>python_qt_binding</depend>
+  <depend>python3-urwid</depend>
   <depend>ros2launch</depend>
 
   <exec_depend>launch</exec_depend>

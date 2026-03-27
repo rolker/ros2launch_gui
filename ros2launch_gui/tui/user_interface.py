@@ -68,10 +68,10 @@ class UserInterface(UserInterfaceBase):
     def spin_once(self):
         if self.close_requested:
             return
-        self.loop.draw_screen()
         keys = self.screen.get_input()
         for key in keys:
             self.loop.process_input([key])
+        self.loop.draw_screen()
 
     def close(self):
         super().close()
@@ -89,7 +89,7 @@ class UserInterface(UserInterfaceBase):
             process_name, return_code)
 
     def on_process_io(self, process_name, text):
-        decoded = text.decode() if isinstance(text, bytes) else text
+        decoded = text.decode(errors='replace') if isinstance(text, bytes) else text
         clean = _ANSI_RE.sub('', decoded)
         for line in clean.splitlines():
             self.output_view.add_line(process_name, line)

@@ -308,3 +308,57 @@ unrelated to duration after).
 - [ ] Push and open the PR (host publishes after the operator checkpoint) — PR body should note the halved UI refresh rate (20 Hz → 10 Hz)
 - [ ] Merge gate: full-scope `ci_local.sh` attestation (no hosted CI in this repo)
 - [ ] Follow-up candidate (not this PR): repo lacks root `AGENTS.md` / `.agents/README.md` / pre-commit config
+
+## Local Review (Pre-Push)
+**Status**: complete
+**When**: 2026-08-24 00:12 -04:00
+**By**: Claude Code Agent (Claude Opus)
+**Verdict**: changes-requested
+
+**Branch**: feature/issue-30 at `654a928`
+**Mode**: pre-push
+**Depth**: Deep (reason: shutdown/lifecycle correctness — the change removes launch's own timer-cancel stop path)
+**Must-fix**: 3 | **Suggestions**: 8
+**Round**: 1 | **Ship**: continue — a reproduced shutdown hang on a path the hardening does not cover
+
+**Specialists**: Static Analysis (ament_flake8 + ament_pep257, clean) · Governance · Plan Drift · Claude Adversarial x2 (Lens A + Lens B) · Local Adversarial skipped (qwen3.5:35b request timed out at the 900 s limit; Ollama contended with a concurrent session)
+
+### Verification performed
+
+- `ament_flake8` / `ament_pep257` clean on all four changed Python files; base lint baseline (`047f59d`) preserved.
+- Reverted each fix in turn and re-ran the new tests: reverting `cancel_on_shutdown=False` fails both leak tests (handler count climbs 12→36 across 25 samples, 1 per poll); reverting the `_on_shutdown` hardening fails the raising-teardown test on `timed_out` in ~7.5 s with `return_code=1`. Both fail — neither hangs, neither passes vacuously.
+- `_count_shutdown_handlers()` discriminates correctly through the public route: 1 handler with `cancel_on_shutdown=True`, 0 with `False`. No `_TimerAction__cancel_on_shutdown` coupling remains.
+- Upstream claims re-verified against `/opt/ros/jazzy/.../launch/`: `TimerAction.execute()` sentinel-guards the `TimerEvent` handler but registers the `Shutdown` cancel handler unguarded; `LaunchService.__process_event` copies the whole deque per event; the in-flight timer's `_completed_future` keeps `_is_idle()` false, so the one-period latency floor is correct.
+
+### Findings
+
+- [ ] (must-fix) Stop condition does not cover every path: a sibling `OnShutdown` handler that raises aborts dispatch before `UserInterface._on_shutdown` runs, so `_close_requested` is never set and the poll chain reschedules forever — reproduced: hung, 75 spins, `run()` never returned. Reachable from any `OnShutdown` in the user launch description this tool exists to display, and from `ExecuteLocal`'s per-process handler. One-line belt `or context.is_shutdown` verified to close it (1.5 s, 15 spins, clean return) — `ros2launch_gui/event_handlers/on_query_user_interface.py:22`
+- [ ] (must-fix) Comment is factually wrong — launch does not "swallow the exception and keep running": `LaunchService.__process_event` has no per-handler try, so re-raising aborts the remaining Shutdown handlers including `LaunchService.__on_shutdown` (registered first ⇒ last in the deque), skips the matching `_pop_locals()`, and sets `return_code=1`. Cross-pass confirmed. Fix the comment or drop the debug re-raise — `ros2launch_gui/api/user_interface.py:168-171`
+- [ ] (must-fix) Comment claims "LaunchService exposes no public accessor for its context" — `LaunchService.context` is a public property (`launch_service.py:436`). Use it and delete the false justification for the name-mangled access — `test/test_poll_loop_handler_leak.py:82-83`
+- [ ] (suggestion) `_on_shutdown` is not idempotent, so `close()` runs twice in debug mode (`_safe_callback` closes and re-raises, launch re-emits Shutdown); `tk`'s unguarded `root.destroy()` raises `TclError` on the second call. Add the `if self._close_requested: return None` re-entry guard `_safe_callback` already has — `ros2launch_gui/api/user_interface.py:153`
+- [ ] (suggestion) `test_default_period_is_10_hz` does not test its stated coupling — it pins a constructor default production never uses (`UserInterface.__init__` always passes `period=` explicitly), so reverting `update_rate` to 20.0 leaves it green. Assert the `OnQueryUserInterface` that `UserInterface.__init__` actually builds. Cross-pass confirmed — `test/test_on_query_user_interface.py:63-66`
+- [ ] (suggestion) Headless-test sampling is load-sensitive with a misleading failure message: the sample count is wall-clock-derived (`len(steady) >= 10` can fail under load), and `launch_service.shutdown()` is a no-op while `__loop_from_run_thread is None`, so a slow main thread silently drops the shutdown request and the watchdog blames the code under test. Use a fixed sample count and gate the sampler on the loop being live. Cross-pass confirmed — `test/test_poll_loop_handler_leak.py:87-92`
+- [ ] (suggestion) The watchdog's own `launch_service.shutdown()` routes to `emit_event` → `future.result()` with no timeout, which blocks forever in exactly the wedged-loop case the watchdog exists to break. It works only because `ui._close_requested = True` is set on the preceding line — document that ordering or drop the call — `test/test_poll_loop_handler_leak.py:99-102`
+- [ ] (suggestion) No test covers the path users actually take: GUI window close / TUI `q` → `on_close()` → `Shutdown` *action*, the only path that bypasses `LaunchService._shutdown()` and leaves `LaunchService.__on_shutdown` as the sole setter of `__shutting_down` — `test/test_poll_loop_handler_leak.py`
+- [ ] (suggestion) Qt comment overstates the change: `qt/main.py:76` already calls `super().close()` before `main_window.close()`, so the flag was set before `closeEvent` even pre-change — `ros2launch_gui/api/user_interface.py:161-163`
+- [ ] (suggestion) A failed UI teardown surfaces as `LogInfo` plus exit code 0 — consistent with `_safe_callback` by design, but a genuine teardown failure (window left up, terminal left in raw mode) warrants error-level logging — `ros2launch_gui/api/user_interface.py:174-177`
+- [ ] (suggestion) The README's new termination story does not cover SIGTERM/SIGQUIT (the run task is cancelled, no Shutdown is emitted, `close()` never runs, TUI leaves the terminal in raw mode) or launch-idle (never fires while the poll chain holds a pending timer future). Both pre-existing — scope the claim or file a follow-up — `README.md:39`
+
+### Governance
+
+- Principles: "A change includes its consequences" — **Concern**: the latency-floor and self-termination consequences are documented at all three sites (call site, `update_rate` line, README), but the stop path itself is incomplete (must-fix 1). "Test what breaks" — **Pass**: both tests are non-vacuous and fail correctly against reverted code. "Never document from assumptions" — **Concern**: two comments assert upstream/API behaviour that source contradicts (must-fix 2 and 3).
+- ADR-0008 (ROS 2 conventions): compliant — ament linters clean. ADR-0013 (progress.md vocabulary): compliant. ADR-0002 (worktree isolation): compliant. ADR-0018 (local-first CI): merge gate remains a full-scope `ci_local.sh` attestation; the lint baseline is green so it is reachable.
+- Commit hygiene: 7 atomic commits under `Claude Code Agent <roland+claude-code@ccom.unh.edu>`, no issue-closing keywords in bodies ("Part of #30").
+- Consequence check: no ROS parameters, topics, or services changed; README updated; no stale rate references remain anywhere in the repo (grep-verified).
+- Pre-existing gap, not this PR: repo has no root `AGENTS.md` / `.agents/README.md` / pre-commit config (already tracked as a follow-up in this timeline).
+
+### Plan Adherence
+
+No drift. All seven plan steps landed as written, and both plan-review must-fixes plus all six suggestions are visible in the implementation (watchdog + `return 0` assertion, public `matches()` route, latency note at the `update_rate` line, real 10 Hz in the headless test, ordering note on the debug re-raise, accepted `get_pending_actions` drop, README rate detail).
+
+### Next actions
+
+- [ ] Address must-fix 1: add the `context.is_shutdown` belt to `OnQueryUserInterface.handle` and cover it with the reproduced sibling-raise scenario as a test
+- [ ] Address must-fix 2 and 3: correct both inaccurate comments (or drop the debug re-raise)
+- [ ] Re-run `/review-code` pre-push after addressing; do not push until the pre-push review is approved
+- [ ] Merge gate: full-scope `ci_local.sh` attestation (no hosted CI in this repo)

@@ -8,22 +8,24 @@ from launch import LaunchContext
 from launch import LaunchDescription
 from launch import LaunchDescriptionEntity
 
-from ..api.create_default_user_interface import create_default_user_interface
 from ..api import UserInterface
+from ..api.create_default_user_interface import create_default_user_interface
+
 
 class DisplayUserInterface(Action):
     """Action to display a user interface for the launch system."""
+
     def __init__(
             self,
             *,
             launch_description: LaunchDescription,
-            ui_launcher: Callable[[LaunchDescription, LaunchContext, bool], UserInterface] = create_default_user_interface,
+            ui_launcher: Callable[
+                [LaunchDescription, LaunchContext, bool], UserInterface
+            ] = create_default_user_interface,
             debug: bool = False
     ):
         """
         Create a DisplayUserInterface action.
-        
-        
 
         :param launch_description: The launch description to display the user interface for.
         :param ui_launcher: The function to use to create the user interface.

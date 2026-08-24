@@ -1,20 +1,20 @@
+from launch import LaunchDescription
 from python_qt_binding.QtWidgets import QApplication
 from python_qt_binding.QtWidgets import QMainWindow
 from python_qt_binding.QtWidgets import QSplitter
 
-from launch import LaunchDescription
-
-from ..api import UserInterface as UserInterfaceBase
 from .details_widget import DetailsWidget
 from .launch_description_widget import LaunchDescriptionWidget
+from ..api import UserInterface as UserInterfaceBase
 
 
 class MainWindow(QMainWindow):
-    def __init__(self, ui: 'UserInterface'=None):
+
+    def __init__(self, ui: 'UserInterface' = None):
         super().__init__()
 
         self._ui = ui
-        self.setWindowTitle("ROS 2 Launch GUI")
+        self.setWindowTitle('ROS 2 Launch GUI')
         self.launch_description_widget = LaunchDescriptionWidget(ui, self)
         self.details_widget = DetailsWidget(self)
 
@@ -22,17 +22,21 @@ class MainWindow(QMainWindow):
         splitter.addWidget(self.launch_description_widget)
         splitter.addWidget(self.details_widget)
 
-
         self.setCentralWidget(splitter)
         self.show()
 
     def on_process_started(self, action, process_name, pid):
         self.details_widget.on_process_started(process_name, pid)
-        self.launch_description_widget.on_entity_process_started(action, process_name, pid, lambda: self.details_widget.show_process_output(process_name))
+        self.launch_description_widget.on_entity_process_started(
+            action,
+            process_name,
+            pid,
+            lambda: self.details_widget.show_process_output(process_name))
 
     def on_process_exited(self, action, process_name, pid, return_code):
         self.details_widget.on_process_exited(process_name, return_code)
-        self.launch_description_widget.on_entity_process_exited(action, process_name, pid, return_code)
+        self.launch_description_widget.on_entity_process_exited(
+            action, process_name, pid, return_code)
 
     def on_process_io(self, process_name, text):
         self.details_widget.on_process_io(process_name, text)

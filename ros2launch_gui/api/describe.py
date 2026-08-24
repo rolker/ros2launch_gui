@@ -2,12 +2,11 @@
 from launch import Action
 from launch import Condition
 from launch import LaunchContext
-from launch import LaunchDescription
 from launch import LaunchDescriptionEntity
-from launch.launch_introspector import format_action
-from launch.launch_introspector import format_substitutions
 from launch.actions import DeclareLaunchArgument
 from launch.actions import IncludeLaunchDescription
+from launch.launch_introspector import format_action
+from launch.launch_introspector import format_substitutions
 from launch.utilities import normalize_to_list_of_substitutions
 from launch.utilities import perform_substitutions
 
@@ -18,7 +17,9 @@ from launch_ros.actions import SetParametersFromFile
 
 
 class DescribedLaunchEntity:
-    """A human readable description of launch entity and its children.
+    """
+    A human readable description of launch entity and its children.
+
     This is used to decouple the launch context from the description to be used
     in a GUI which may be running in a different thread.
     """
@@ -56,16 +57,23 @@ class DescribedLaunchEntity:
 
         self.conditional_children = []
 
-        # IncludeLaunchDescription's describe_sub_entities() method returns temporary entities with different ids than the entities actually run, so try to get the real ones.
+        # IncludeLaunchDescription's describe_sub_entities() method returns temporary
+        # entities with different ids than the entities actually run, so try to get
+        # the real ones.
         if isinstance(launch_entity, IncludeLaunchDescription):
             try:
-                self.children = [DescribedLaunchEntity(launch_entity.launch_description_source.get_launch_description(context)),]
-            except Exception as e:
+                self.children = [
+                    DescribedLaunchEntity(
+                        launch_entity.launch_description_source.get_launch_description(context)),
+                ]
+            except Exception:
                 self.children = []
         else:
-            self.children = [DescribedLaunchEntity(child) for child in launch_entity.describe_sub_entities()]
+            self.children = [
+                DescribedLaunchEntity(child) for child in launch_entity.describe_sub_entities()]
             for condition, sub_entities in launch_entity.describe_conditional_sub_entities():
-                self.conditional_children.append((condition, [DescribedLaunchEntity(child) for child in sub_entities]))
+                self.conditional_children.append(
+                    (condition, [DescribedLaunchEntity(child) for child in sub_entities]))
 
         self.condition = None
         if isinstance(launch_entity, Action):
@@ -78,11 +86,11 @@ class DescribedLaunchEntity:
             for la in launch_entity.launch_arguments:
                 try:
                     la0 = describe_substitution(la[0], context)
-                except Exception as e:
+                except Exception:
                     la0 = str(la[0])
                 try:
                     la1 = describe_substitution(la[1], context)
-                except Exception as e:
+                except Exception:
                     la1 = str(la[1])
                 self.launch_arguments.append((la0, la1))
 
@@ -105,17 +113,17 @@ class DescribedLaunchEntity:
                 self.label = launch_entity.node_name
             except RuntimeError:
                 pass
-            self.description = "package: {}, executable: {}".format(launch_entity.node_package, launch_entity.node_executable)
-        
+            self.description = 'package: {}, executable: {}'.format(
+                launch_entity.node_package, launch_entity.node_executable)
+
         elif isinstance(launch_entity, PushRosNamespace):
             self.label = describe_substitution(launch_entity.namespace, context)
             self.description = describe_substitution(launch_entity.namespace, None)
 
-
-
-
     def __repr__(self):
-        return 'id: {} ({}) name: {} desc: {}'.format(self.id, self.type_name, self.label, self.description)
+        return 'id: {} ({}) name: {} desc: {}'.format(
+            self.id, self.type_name, self.label, self.description)
+
 
 def describe_condition(condition: Condition, context: LaunchContext) -> str:
     if condition is not None:
@@ -127,6 +135,7 @@ def describe_condition(condition: Condition, context: LaunchContext) -> str:
                 value = str(e)
         return '{}: {}'.format(type(condition).__name__, value)
     return ''
+
 
 def describe_substitution(substitution, context: LaunchContext) -> str:
     if substitution is None:

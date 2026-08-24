@@ -1,10 +1,9 @@
 
-from launch import LaunchDescription
-
-from ros2launch_gui.actions import DisplayUserInterface
-from ros2launch.option import OptionExtension
-
 from typing import Tuple
+
+from launch import LaunchDescription
+from ros2launch.option import OptionExtension
+from ros2launch_gui.actions import DisplayUserInterface
 
 
 class GuiOption(OptionExtension):
@@ -21,13 +20,11 @@ class GuiOption(OptionExtension):
         launch_description: LaunchDescription,
         args
     ) -> Tuple[LaunchDescription,]:
-        if(args.gui):
+        if args.gui:
             return LaunchDescription(
                 [
                     DisplayUserInterface(launch_description=launch_description, debug=args.debug),
                 ]
             ),
 
-        return launch_description, 
-
-
+        return launch_description,

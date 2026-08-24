@@ -1,37 +1,32 @@
 import signal
 
-from typing import Callable
-
+from launch.actions import EmitEvent
+from launch.events.process import SignalProcess
+from launch.events.process.process_matchers import matches_pid
+from launch_ros.events import matches_node_name
+from launch_ros.events.lifecycle import ChangeState
+from lifecycle_msgs.msg import Transition
 from python_qt_binding.QtCore import Qt
 from python_qt_binding.QtGui import QBrush
 from python_qt_binding.QtGui import QColor
 from python_qt_binding.QtWidgets import QCheckBox
 from python_qt_binding.QtWidgets import QMenu
-from python_qt_binding.QtWidgets import QTreeWidgetItem
 from python_qt_binding.QtWidgets import QTreeWidget
+from python_qt_binding.QtWidgets import QTreeWidgetItem
 from python_qt_binding.QtWidgets import QVBoxLayout
 from python_qt_binding.QtWidgets import QWidget
-
-from launch.actions import EmitEvent
-from launch.events.process import SignalProcess
-from launch.events.process.process_matchers import matches_pid
-from launch_ros.events.lifecycle import ChangeState
-from launch_ros.events import matches_node_name
 from ros2launch_gui.api.describe import DescribedLaunchEntity
-
-from lifecycle_msgs.msg import Transition
 
 
 class LaunchDescriptionWidget(QWidget):
     """
     A widget that displays a launch description as a tree.
-    
+
     The tree is updated when the launch is executed showing the status of processes.
     """
 
     DetailsCallbackRole = Qt.UserRole
     ContextMenuRole = Qt.UserRole + 1
-
 
     lifecycle_transitions = {
         'unconfigured': (
@@ -63,10 +58,9 @@ class LaunchDescriptionWidget(QWidget):
             self.trees[tree_type].setObjectName(tree_type + '_tree')
             self.trees[tree_type].setVisible(False)
 
-
-        self.show_detailed_configuration_checkbox.stateChanged.connect(self.show_detailed_configuration_checkbox_state_changed)
+        self.show_detailed_configuration_checkbox.stateChanged.connect(
+            self.show_detailed_configuration_checkbox_state_changed)
         self.show_detailed_configuration_checkbox.setChecked(False)
-
 
         layout = QVBoxLayout()
         layout.addWidget(self.show_detailed_configuration_checkbox)
@@ -104,7 +98,6 @@ class LaunchDescriptionWidget(QWidget):
             self.trees['detailed'].hide()
             self.trees['simple'].show()
 
-
     def on_item_selected(self, item, column):
         if item is not None:
             selected_callback = item.data(0, self.DetailsCallbackRole)
@@ -131,7 +124,8 @@ class LaunchDescriptionWidget(QWidget):
         else:
             process_items = {}
             for item_label in self.tree_types:
-                process_items[item_label] = QTreeWidgetItem(['Process', 'running', process_name, f'PID: {pid}'])
+                process_items[item_label] = QTreeWidgetItem(
+                    ['Process', 'running', process_name, f'PID: {pid}'])
             self.process_items[process_name] = process_items
         if entity.id in self.entity_items:
             items = self.entity_items[entity.id]
@@ -142,7 +136,7 @@ class LaunchDescriptionWidget(QWidget):
                     item.setExpanded(True)
                     item.setData(0, self.DetailsCallbackRole, selected_callback)
 
-            if entity.type_name == "LifecycleNode":
+            if entity.type_name == 'LifecycleNode':
                 self.on_state_transition(entity, 'unknown', 'unconfigured')
         else:
             for tree_type in self.tree_types:
@@ -161,7 +155,7 @@ class LaunchDescriptionWidget(QWidget):
                     lambda: self._ui.add_pending_action(
                         EmitEvent(
                             event=SignalProcess(
-                                signal_number= signal.SIGINT,
+                                signal_number=signal.SIGINT,
                                 process_matcher=matches_pid(pid)
                             )
                         )
@@ -183,8 +177,13 @@ class LaunchDescriptionWidget(QWidget):
                 )
             )
 
-
-    def on_entity_process_exited(self, entity: DescribedLaunchEntity, process_name: str, pid: int, return_code) -> None:
+    def on_entity_process_exited(
+            self,
+            entity: DescribedLaunchEntity,
+            process_name: str,
+            pid: int,
+            return_code
+    ) -> None:
         if process_name in self.process_items:
             items = self.process_items[process_name]
             for tree_type in self.tree_types:
@@ -210,14 +209,19 @@ class LaunchDescriptionWidget(QWidget):
                     item.setText(3, str(launch_entity.description))
                     if status is not None:
                         item.setText(1, status)
-                if launch_entity.type_name == "IncludeLaunchDescription":
+                if launch_entity.type_name == 'IncludeLaunchDescription':
                     for child in launch_entity.children:
                         if child.id not in self.entity_items:
                             self.add_launch_entity_to_trees(child, launch_entity)
         for child in launch_entity.children:
             self.updated_launch_entity(child)
 
-    def on_state_transition(self, entity: DescribedLaunchEntity, start_state: str, goal_state: str) -> None:
+    def on_state_transition(
+            self,
+            entity: DescribedLaunchEntity,
+            start_state: str,
+            goal_state: str
+    ) -> None:
         if entity.id in self.entity_items:
             items = self.entity_items[entity.id]
             for tree_type in self.tree_types:
@@ -229,18 +233,18 @@ class LaunchDescriptionWidget(QWidget):
                     else:
                         item.setData(1, Qt.BackgroundRole, QBrush(QColor(255, 255, 150)))
                     if goal_state in self.lifecycle_transitions:
-                        item.setData(0, self.ContextMenuRole, lambda menu: self.get_lifecycle_menu_items(menu, entity.label, goal_state))
+                        item.setData(
+                            0,
+                            self.ContextMenuRole,
+                            lambda menu: self.get_lifecycle_menu_items(
+                                menu, entity.label, goal_state))
                     else:
                         item.setData(0, self.ContextMenuRole, None)
-
-
-
-
 
     def add_launch_entity_to_trees(
         self,
         launch_entity: DescribedLaunchEntity,
-        parent: DescribedLaunchEntity=None,
+        parent: DescribedLaunchEntity = None,
         status=None
     ):
         if launch_entity.id in self.entity_items:
@@ -252,20 +256,28 @@ class LaunchDescriptionWidget(QWidget):
         else:
             items = {}
             for tree_type in self.tree_types:
-                if tree_type != "simple" or launch_entity.type_name in ("Node", "LifecycleNode"):
+                if tree_type != 'simple' or launch_entity.type_name in ('Node', 'LifecycleNode'):
 
                     status_text = status if status is not None else ''
-                    item = QTreeWidgetItem([launch_entity.type_name, status_text, launch_entity.label, str(launch_entity.description), status])
+                    item = QTreeWidgetItem([
+                        launch_entity.type_name,
+                        status_text,
+                        launch_entity.label,
+                        str(launch_entity.description),
+                        status,
+                    ])
                     parent_item = None
                     expand_parent = True
                     if parent is not None:
                         if parent.id in self.entity_items:
                             parent_item = self.entity_items[parent.id][tree_type]
                             if parent_item is not None:
-                                if launch_entity.type_name == "DeclareLaunchArgument":
-                                    if not parent.id in self.launch_arguments_items:
-                                        self.launch_arguments_items[parent.id] = QTreeWidgetItem(['Launch Arguments', '', '', ''])
-                                        parent_item.addChild(self.launch_arguments_items[parent.id])
+                                if launch_entity.type_name == 'DeclareLaunchArgument':
+                                    if parent.id not in self.launch_arguments_items:
+                                        self.launch_arguments_items[parent.id] = (
+                                            QTreeWidgetItem(['Launch Arguments', '', '', '']))
+                                        parent_item.addChild(
+                                            self.launch_arguments_items[parent.id])
                                     parent_item = self.launch_arguments_items[parent.id]
                                     expand_parent = False
                     if tree_type == 'detailed':
@@ -273,7 +285,8 @@ class LaunchDescriptionWidget(QWidget):
                             if launch_entity.id in self.entity_condition_items:
                                 condition_item = self.entity_condition_items[launch_entity.id]
                             else:
-                                condition_item = QTreeWidgetItem(['Condition', '', launch_entity.condition, ''])
+                                condition_item = QTreeWidgetItem(
+                                    ['Condition', '', launch_entity.condition, ''])
                                 self.entity_condition_items[launch_entity.id] = condition_item
                                 if parent_item is not None:
                                     parent_item.addChild(condition_item)
@@ -294,7 +307,6 @@ class LaunchDescriptionWidget(QWidget):
                     items[tree_type] = None
 
             self.entity_items[launch_entity.id] = items
-            
 
         for child in launch_entity.children:
             self.add_launch_entity_to_trees(child, launch_entity)
@@ -308,14 +320,17 @@ class LaunchDescriptionWidget(QWidget):
         item: QTreeWidgetItem,
         status: str
     ):
-        if launch_entity.type_name == "LifecycleNode":
+        if launch_entity.type_name == 'LifecycleNode':
             item.setData(1, Qt.BackgroundRole, QBrush(QColor(255, 255, 150)))
             if status is None:
                 # assuming lifecycle node is unconfigured until we know otherwise
                 status = 'unconfigured'
             if status in self.lifecycle_transitions:
-                item.setData(0, self.ContextMenuRole, lambda menu: self.get_lifecycle_menu_items(menu, launch_entity.label, status))
-        
+                item.setData(
+                    0,
+                    self.ContextMenuRole,
+                    lambda menu: self.get_lifecycle_menu_items(
+                        menu, launch_entity.label, status))
 
     def show_context_menu(self, pos, tree):
         item = tree.itemAt(pos)
@@ -325,4 +340,3 @@ class LaunchDescriptionWidget(QWidget):
                 menu = QMenu(self)
                 context_menu_callback(menu)
                 menu.exec_(tree.mapToGlobal(pos))
-

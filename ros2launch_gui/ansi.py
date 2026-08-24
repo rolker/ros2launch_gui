@@ -20,7 +20,8 @@ ansi_color_re = re.compile(r'\033\[([0-9;]*)m')
 
 
 def _parse_codes(codes):
-    """Parse ANSI code list into (modifier, color) tuple.
+    """
+    Parse ANSI code list into (modifier, color) tuple.
 
     Returns (modifier_tag, color_hex) where modifier_tag is 'b', 'i', 'u',
     or None, and color_hex is an HTML color string or None.
@@ -42,7 +43,8 @@ def _parse_codes(codes):
 
 
 def ansi_to_html(text):
-    """Convert ANSI color codes in text to HTML spans.
+    """
+    Convert ANSI color codes in text to HTML spans.
 
     Handles multiple color regions per line, mid-line color changes,
     reset codes, and modifier+color combinations.

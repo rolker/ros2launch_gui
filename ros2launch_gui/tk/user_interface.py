@@ -3,10 +3,10 @@ from tkinter import ttk
 
 from launch import LaunchDescription
 
-from ..api import DescribedLaunchEntity
-from ..api import UserInterface as UserInterfaceBase
 from .launch_description_treeview import LaunchDescriptionTreeview
 from .process_manager import ProcessManager
+from ..api import DescribedLaunchEntity
+from ..api import UserInterface as UserInterfaceBase
 
 
 class UserInterface(UserInterfaceBase):

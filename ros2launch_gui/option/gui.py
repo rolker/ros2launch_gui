@@ -1,10 +1,9 @@
 
-from launch import LaunchDescription
-
-from ros2launch_gui.actions import DisplayUserInterface
-from ros2launch.option import OptionExtension
-
 from typing import Tuple
+
+from launch import LaunchDescription
+from ros2launch.option import OptionExtension
+from ros2launch_gui.actions import DisplayUserInterface
 
 
 class GuiOption(OptionExtension):

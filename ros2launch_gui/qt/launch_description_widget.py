@@ -1,25 +1,21 @@
 import signal
 
-from typing import Callable
-
+from launch.actions import EmitEvent
+from launch.events.process import SignalProcess
+from launch.events.process.process_matchers import matches_pid
+from launch_ros.events import matches_node_name
+from launch_ros.events.lifecycle import ChangeState
+from lifecycle_msgs.msg import Transition
 from python_qt_binding.QtCore import Qt
 from python_qt_binding.QtGui import QBrush
 from python_qt_binding.QtGui import QColor
 from python_qt_binding.QtWidgets import QCheckBox
 from python_qt_binding.QtWidgets import QMenu
-from python_qt_binding.QtWidgets import QTreeWidgetItem
 from python_qt_binding.QtWidgets import QTreeWidget
+from python_qt_binding.QtWidgets import QTreeWidgetItem
 from python_qt_binding.QtWidgets import QVBoxLayout
 from python_qt_binding.QtWidgets import QWidget
-
-from launch.actions import EmitEvent
-from launch.events.process import SignalProcess
-from launch.events.process.process_matchers import matches_pid
-from launch_ros.events.lifecycle import ChangeState
-from launch_ros.events import matches_node_name
 from ros2launch_gui.api.describe import DescribedLaunchEntity
-
-from lifecycle_msgs.msg import Transition
 
 
 class LaunchDescriptionWidget(QWidget):

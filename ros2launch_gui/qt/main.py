@@ -1,12 +1,11 @@
+from launch import LaunchDescription
 from python_qt_binding.QtWidgets import QApplication
 from python_qt_binding.QtWidgets import QMainWindow
 from python_qt_binding.QtWidgets import QSplitter
 
-from launch import LaunchDescription
-
-from ..api import UserInterface as UserInterfaceBase
 from .details_widget import DetailsWidget
 from .launch_description_widget import LaunchDescriptionWidget
+from ..api import UserInterface as UserInterfaceBase
 
 
 class MainWindow(QMainWindow):

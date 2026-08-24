@@ -169,9 +169,10 @@ class UserInterface:
         # reaching super().close() would otherwise leave the loop
         # rescheduling.
         #
-        # Setting it first is also what lets the Qt backend's
-        # close() -> main_window.close() -> closeEvent -> on_close() path
-        # avoid re-emitting Shutdown.
+        # (The Qt backend's close() -> closeEvent -> on_close() path also
+        # relies on the flag being set, but sets it itself: qt/main.py's
+        # close() calls super().close() before main_window.close(), so that
+        # path never depended on the ordering here.)
         self._close_requested = True
         try:
             self.close()

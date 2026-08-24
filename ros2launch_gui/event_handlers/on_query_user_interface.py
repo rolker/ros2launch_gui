@@ -19,7 +19,27 @@ class OnQueryUserInterface(BaseEventHandler):
 
     def handle(self, event, context):
         super().handle(event, context)
-        if self._ui.close_requested:
+        # Two independent stop conditions, and both are load-bearing — do not
+        # "simplify" either one away.
+        #
+        # close_requested is the primary one: UserInterface._on_shutdown sets
+        # it before any backend teardown runs, so it covers the ordinary
+        # shutdown and a teardown that raises.
+        #
+        # context.is_shutdown is the belt to that suspenders, because
+        # close_requested depends on the UI's own OnShutdown handler actually
+        # running, and that is not guaranteed. LaunchService.__process_event
+        # iterates the handler deque with no per-handler try, and
+        # register_event_handler appends left (newest first), so *any* sibling
+        # OnShutdown handler that raises — one in the user launch description
+        # this tool exists to display, or ExecuteLocal's per-process handler —
+        # aborts dispatch before UserInterface._on_shutdown is reached, leaving
+        # close_requested False and this chain rescheduling forever. The launch
+        # context's is_shutdown flag is set by LaunchService._shutdown() (which
+        # runs on SIGINT, on shutdown(), on idle, and from run_async's
+        # catch-all for exactly the raising-handler case), so it does not
+        # depend on any event handler completing.
+        if self._ui.close_requested or context.is_shutdown:
             return None
         self._ui.spin_once()
         return [
@@ -36,11 +56,10 @@ class OnQueryUserInterface(BaseEventHandler):
             # throughout and never finished shutting down. This is the only
             # record of that upstream cause; no ros2/launch issue is filed.
             #
-            # With the cancel handler gone, what stops this poll chain is
-            # UserInterface.close_requested: the early return above declines to
-            # schedule the next timer. That flag is set before any backend
-            # teardown runs (UserInterface._on_shutdown), so a raising teardown
-            # cannot leave the loop rescheduling forever.
+            # With the cancel handler gone, what stops this poll chain is the
+            # early return above: it declines to schedule the next timer once
+            # either UserInterface.close_requested or LaunchContext.is_shutdown
+            # is set. See that comment for why both are needed.
             #
             # Consequence: the poll period is now also a floor on shutdown
             # latency — launch waits out the in-flight timer instead of

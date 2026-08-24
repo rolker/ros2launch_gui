@@ -106,16 +106,14 @@ class DescribedLaunchEntity:
             except RuntimeError:
                 pass
             self.description = 'package: {}, executable: {}'.format(launch_entity.node_package, launch_entity.node_executable)
-        
+
         elif isinstance(launch_entity, PushRosNamespace):
             self.label = describe_substitution(launch_entity.namespace, context)
             self.description = describe_substitution(launch_entity.namespace, None)
 
-
-
-
     def __repr__(self):
         return 'id: {} ({}) name: {} desc: {}'.format(self.id, self.type_name, self.label, self.description)
+
 
 def describe_condition(condition: Condition, context: LaunchContext) -> str:
     if condition is not None:
@@ -127,6 +125,7 @@ def describe_condition(condition: Condition, context: LaunchContext) -> str:
                 value = str(e)
         return '{}: {}'.format(type(condition).__name__, value)
     return ''
+
 
 def describe_substitution(substitution, context: LaunchContext) -> str:
     if substitution is None:

@@ -22,7 +22,6 @@ class MainWindow(QMainWindow):
         splitter.addWidget(self.launch_description_widget)
         splitter.addWidget(self.details_widget)
 
-
         self.setCentralWidget(splitter)
         self.show()
 

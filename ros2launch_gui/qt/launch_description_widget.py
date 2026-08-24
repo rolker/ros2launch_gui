@@ -32,7 +32,6 @@ class LaunchDescriptionWidget(QWidget):
     DetailsCallbackRole = Qt.UserRole
     ContextMenuRole = Qt.UserRole + 1
 
-
     lifecycle_transitions = {
         'unconfigured': (
             ('Configure', Transition.TRANSITION_CONFIGURE),
@@ -63,10 +62,8 @@ class LaunchDescriptionWidget(QWidget):
             self.trees[tree_type].setObjectName(tree_type + '_tree')
             self.trees[tree_type].setVisible(False)
 
-
         self.show_detailed_configuration_checkbox.stateChanged.connect(self.show_detailed_configuration_checkbox_state_changed)
         self.show_detailed_configuration_checkbox.setChecked(False)
-
 
         layout = QVBoxLayout()
         layout.addWidget(self.show_detailed_configuration_checkbox)
@@ -103,7 +100,6 @@ class LaunchDescriptionWidget(QWidget):
         else:
             self.trees['detailed'].hide()
             self.trees['simple'].show()
-
 
     def on_item_selected(self, item, column):
         if item is not None:
@@ -183,7 +179,6 @@ class LaunchDescriptionWidget(QWidget):
                 )
             )
 
-
     def on_entity_process_exited(self, entity: DescribedLaunchEntity, process_name: str, pid: int, return_code) -> None:
         if process_name in self.process_items:
             items = self.process_items[process_name]
@@ -232,10 +227,6 @@ class LaunchDescriptionWidget(QWidget):
                         item.setData(0, self.ContextMenuRole, lambda menu: self.get_lifecycle_menu_items(menu, entity.label, goal_state))
                     else:
                         item.setData(0, self.ContextMenuRole, None)
-
-
-
-
 
     def add_launch_entity_to_trees(
         self,
@@ -294,7 +285,6 @@ class LaunchDescriptionWidget(QWidget):
                     items[tree_type] = None
 
             self.entity_items[launch_entity.id] = items
-            
 
         for child in launch_entity.children:
             self.add_launch_entity_to_trees(child, launch_entity)
@@ -315,7 +305,6 @@ class LaunchDescriptionWidget(QWidget):
                 status = 'unconfigured'
             if status in self.lifecycle_transitions:
                 item.setData(0, self.ContextMenuRole, lambda menu: self.get_lifecycle_menu_items(menu, launch_entity.label, status))
-        
 
     def show_context_menu(self, pos, tree):
         item = tree.itemAt(pos)
@@ -325,4 +314,3 @@ class LaunchDescriptionWidget(QWidget):
                 menu = QMenu(self)
                 context_menu_callback(menu)
                 menu.exec_(tree.mapToGlobal(pos))
-

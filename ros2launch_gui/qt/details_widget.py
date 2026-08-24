@@ -4,6 +4,7 @@ from python_qt_binding.QtWidgets import QVBoxLayout
 
 from .process_output_widget import ProcessOutputWidget
 
+
 class DetailsWidget(QWidget):
     """A widget to manage and display detail widgets."""
 

@@ -1,6 +1,7 @@
 
 from launch import Event
 
+
 class QueryUserInterface(Event):
     """Event sent at regular interval to collect Actions from a user interface"""
 

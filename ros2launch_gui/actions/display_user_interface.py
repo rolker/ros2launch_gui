@@ -11,8 +11,10 @@ from launch import LaunchDescriptionEntity
 from ..api.create_default_user_interface import create_default_user_interface
 from ..api import UserInterface
 
+
 class DisplayUserInterface(Action):
     """Action to display a user interface for the launch system."""
+
     def __init__(
             self,
             *,

@@ -2,6 +2,7 @@ from tkinter import ttk
 
 from ros2launch_gui.api.describe import DescribedLaunchEntity
 
+
 class LaunchDescriptionTreeview(ttk.Frame):
     """A widget that displays a launch description as a tree."""
 
@@ -27,12 +28,10 @@ class LaunchDescriptionTreeview(ttk.Frame):
 
         self.tree.bind('<<TreeviewSelect>>', self.on_tree_item_selected)
 
-
-
     def add_process_selected_callback(self, callback):
         self.process_selected_callbacks.append(callback)
 
-    def on_describe_launch_entity(self, entity: DescribedLaunchEntity) -> None:        
+    def on_describe_launch_entity(self, entity: DescribedLaunchEntity) -> None:
         self.add_launch_entity_to_tree(entity)
 
     def on_execution_complete(self, entity: DescribedLaunchEntity) -> None:

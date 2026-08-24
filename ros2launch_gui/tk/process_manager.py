@@ -3,6 +3,7 @@ from tkinter.scrolledtext import ScrolledText
 
 from ros2launch_gui.api.describe import DescribedLaunchEntity
 
+
 class ProcessList(ttk.Frame):
     """A widget that displays a list of launch processes and their status."""
 
@@ -22,12 +23,10 @@ class ProcessList(ttk.Frame):
 
         self.tree_ids = {}
 
-
     def get_item_id(self, process_name: str) -> str:
         if not process_name in self.tree_ids:
             self.tree_ids[process_name] = self.tree.insert('', 'end', text=process_name, values=(0, 'unknown'))
         return self.tree_ids[process_name]
-
 
     def on_process_started(
             self,
@@ -48,6 +47,7 @@ class ProcessList(ttk.Frame):
         item_id = self.get_item_id(process_name)
         self.tree.item(item_id, values=(pid, 'exit: {}'.format(return_code)))
 
+
 class ProcessIOView(ttk.Frame):
     def __init__(self, parent=None, show_process_name: bool = False):
         super().__init__(parent)
@@ -59,7 +59,6 @@ class ProcessIOView(ttk.Frame):
 
         self.show_process_name = show_process_name
 
-
     def on_process_io(self, process_name: str, data: str) -> None:
         self.text.config(state='normal')
         if self.show_process_name:
@@ -69,6 +68,7 @@ class ProcessIOView(ttk.Frame):
             self.text.insert('end', data)
         #self.text.see('end')
         self.text.config(state='disabled')
+
 
 class ProcessIONotebook(ttk.Frame):
     def __init__(self, parent=None):
@@ -126,6 +126,7 @@ class ProcessIONotebook(ttk.Frame):
         if process_name in self.io_widgets:
             io_widget = self.io_widgets[process_name]
             io_widget.on_process_io(process_name, 'Process {} exited with return code: {}\n'.format(pid, return_code))
+
 
 class ProcessManager(ttk.Frame):
     """A widget that displays a list of launch processes as well as their output in a tabbed display."""

@@ -22,7 +22,6 @@ class ProcessOutputWidget(QWidget):
         self.setLayout(layout)
         self.text_edit.show()
 
-
     def on_process_io(self, process_name, text):
         for line in text.split('\n'):
             line = line.rstrip()

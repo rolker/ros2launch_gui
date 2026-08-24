@@ -4,6 +4,7 @@ from launch import LaunchDescription
 
 from ros2launch_gui.api import UserInterface
 
+
 def create_default_user_interface(
         launch_description: LaunchDescription,
         context: LaunchContext,
@@ -14,4 +15,3 @@ def create_default_user_interface(
     from ros2launch_gui.qt import UserInterface
 
     return UserInterface(launch_description, debug=debug)
-

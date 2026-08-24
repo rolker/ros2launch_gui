@@ -28,6 +28,4 @@ class GuiOption(OptionExtension):
                 ]
             ),
 
-        return launch_description, 
-
-
+        return launch_description,

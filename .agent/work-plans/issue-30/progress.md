@@ -458,3 +458,24 @@ No drift. Plan step 8 records the round-1 follow-through and matches what landed
 - [x] Address the single must-fix (guarded teardown on the `is_shutdown` branch + test assertion, or the README/comment correction as the minimum), then push — a third full review round is not warranted
 - [x] Optional, cheap, and worth batching into the same commit: the five comment-accuracy corrections and the two test-hardening assertions
 - [ ] Merge gate: full-scope `ci_local.sh` attestation (no hosted CI in this repo)
+
+## Integrated Review
+**Status**: complete
+**When**: 2026-08-24 10:05 -04:00
+**By**: Claude Code Agent (Claude Opus 5 (1M context))
+
+**PR**: #34 at `957ad34`
+**Sources**: 3 (Copilot @ `957ad34`, Local Review (Pre-Push) rounds 1-2, CI rollup)
+**Cross-source confirmations**: 0
+**CI**: no hosted CI in this repo; merge gate is the `ci_local.sh` full-scope attestation (PASS on `957ad34`)
+
+Copilot verdict: 🟢 Approval recommended — "Only documentation wording nits remain; no blocking issues were identified." Three inline comments, all the same defect.
+
+### Findings
+- [x] (valid, Copilot ×3) "Floor" is the wrong bound: waiting out the in-flight timer delays shutdown by **up to** one poll period, not at least one — the delay depends on the timer's phase and can be near zero. Self-refuted by this PR's own measurements (10 Hz shutdowns of 0.021 s and 0.008 s, both far below the claimed ~100 ms floor), and `api/user_interface.py` contradicted itself, calling the rate a "floor" then saying "takes up to one period" four lines later. Fixed in `2e82374` — `README.md:44`, `ros2launch_gui/api/user_interface.py:50`, `ros2launch_gui/event_handlers/on_query_user_interface.py:96`
+
+### False positives
+- None. Copilot raised one distinct defect across three sites; it was valid at all three.
+
+### Note for the record
+The first fetch of this PR's comments was run from the workspace root and returned `ros2_agent_workspace` PR #34 instead — a different PR entirely (skill-creator/skill-importer wording). Caught before triage, but it is exactly the cross-repo number collision the checkpoint rules warn about: `fetch_pr_reviews.sh --pr <N>` resolves the repo from the working directory, so it must be run from the target repo's worktree.

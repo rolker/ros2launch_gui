@@ -13,6 +13,7 @@ from launch.event_handlers import OnProcessStart
 from launch.event_handlers import OnShutdown
 from launch.events import IncludeLaunchDescription
 from launch.events.process import ProcessIO
+from launch.logging import get_logger
 
 from launch_ros.events.lifecycle import StateTransition
 
@@ -46,7 +47,15 @@ class UserInterface:
         self._debug = debug
         self._close_requested = False
 
-        update_rate = 5.0 if debug else 20.0
+        # This rate bounds how much the poll loop can ADD to shutdown
+        # latency. The UI poll timer runs with cancel_on_shutdown=False (see
+        # OnQueryUserInterface.handle for why), so launch waits out the
+        # in-flight timer rather than cancelling it: shutdown is delayed by up
+        # to one period (<= ~100 ms at 10 Hz, <= 200 ms on the 5 Hz debug
+        # path), and often far less — it depends on the timer's phase when
+        # shutdown arrives. An upper bound, not a floor. Lowering the rate
+        # raises that bound by the same amount.
+        update_rate = 5.0 if debug else 10.0
         period = 1.0 / update_rate
 
         self._pending_actions = [
@@ -145,7 +154,56 @@ class UserInterface:
             event, context)
 
     def _on_shutdown(self, event, context):
-        self.close()
+        # Re-entry guard, matching _safe_callback's. Launch can deliver
+        # Shutdown to this handler twice, but only on one route: a
+        # launch.actions.Shutdown — what on_close() queues — never calls
+        # LaunchService._shutdown(), so __shutting_down is set only by
+        # LaunchService.__on_shutdown. If any OnShutdown handler raises,
+        # __process_event aborts before reaching that handler, the flag stays
+        # False, and run_async's catch-all emits a second Shutdown. Every
+        # other route (SIGINT, shutdown(), idle, the catch-all itself) goes
+        # through _shutdown(), which sets __shutting_down before the event is
+        # ever dispatched — emit_event_sync only queues it — so no second
+        # delivery is possible there. Backend teardown is rarely safe to run
+        # twice (a second tk root.destroy() raises TclError), so the repeat
+        # must be swallowed here.
+        if self._close_requested:
+            return None
+
+        # Set the flag *before* tearing anything down. It is one of the two
+        # things that stop the UI poll chain (OnQueryUserInterface.handle
+        # returns None once it is set), and the poll timer is no longer
+        # cancelled by launch, so a backend close() that raises before
+        # reaching super().close() would otherwise leave the loop
+        # rescheduling.
+        #
+        # (The Qt backend's close() -> closeEvent -> on_close() path also
+        # relies on the flag being set, but sets it itself: qt/main.py's
+        # close() calls super().close() before main_window.close(), so that
+        # path never depended on the ordering here.)
+        self._close_requested = True
+        try:
+            self.close()
+        except Exception as e:
+            # Re-raising under _debug does not merely get logged: launch's
+            # __process_event has no per-handler try, so the raise aborts the
+            # remaining Shutdown handlers (including
+            # LaunchService.__on_shutdown, which register_event_handler's
+            # appendleft leaves last among the Shutdown-matching handlers —
+            # LaunchService registers it in __init__, ahead of every user
+            # handler), skips the matching context._pop_locals(), and
+            # leaves run() returning 1. That is acceptable in debug mode —
+            # surfacing the failure is the point — and termination is
+            # unaffected because _close_requested is already set above and
+            # OnQueryUserInterface also stops on context.is_shutdown.
+            if self._debug:
+                raise
+            # Error level, not LogInfo: a failed teardown means the window is
+            # still up or the terminal is still in raw mode, which the user
+            # has to know about even though the exit code stays 0.
+            get_logger('ros2launch_gui').error(
+                'Exception closing UI on shutdown: {}'.format(e))
+            return None
         return None
 
     # -- public interface -----------------------------------------------

@@ -74,11 +74,17 @@ class UserInterface(UserInterfaceBase):
         self.loop.draw_screen()
 
     def close(self):
+        # super().close() first: it sets _close_requested, which stops the UI
+        # poll chain, and it must happen even if stopping urwid fails.
         super().close()
-        try:
-            self.loop.stop()
-        except Exception:
-            pass
+        # Deliberately unguarded. A failing loop.stop() is exactly the case
+        # the caller reports at error level (UserInterface._on_shutdown, and
+        # OnQueryUserInterface.handle on the is_shutdown route): it leaves the
+        # terminal in raw mode, which the operator has to be told about.
+        # Swallowing it here made that report unreachable. Re-entry is already
+        # prevented by the _close_requested guards in both callers, so this
+        # cannot be called twice on a stopped loop.
+        self.loop.stop()
 
     def on_process_started(self, process_name, pid,
                            action: DescribedLaunchEntity):

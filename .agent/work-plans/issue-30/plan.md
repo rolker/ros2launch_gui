@@ -56,8 +56,9 @@ report, no tracking item; Q3 both test forms; Q4 harden `_close_requested` here.
    teardown raises first turns a cosmetic bug into a shutdown **hang**. Set
    `self._close_requested = True` in `_on_shutdown` **before** calling
    `self.close()`, and guard the `close()` call so a raising teardown is reported,
-   not propagated: re-raise when `self._debug`, otherwise return a `LogInfo`
-   matching `_safe_callback`'s style. Setting the flag first is also correct for the
+   not propagated: re-raise when `self._debug`, otherwise report it —
+   superseded in round 1 by error-level logging rather than a `LogInfo`
+   action (see step 8). Setting the flag first is also correct for the
    Qt backend, whose `close()` → `closeEvent` → `on_close()` path checks
    `close_requested` to avoid re-emitting `Shutdown`. Base `close()` keeps setting
    the flag (idempotent); the three backends keep calling `super().close()` first.
@@ -145,15 +146,58 @@ report, no tracking item; Q3 both test forms; Q4 harden `_close_requested` here.
      self-termination does *not* cover (SIGTERM/SIGQUIT, shutdown-when-idle) —
      both pre-existing.
 
+9. **Review round 2 follow-through** (`## Local Review (Pre-Push)`, 2026-08-24,
+   verdict changes-requested, ship: recommended) — one must-fix, nine
+   suggestions, all actioned:
+   - **The `is_shutdown` route never tore the UI down** (must-fix): step 8's
+     belt ended the poll loop but skipped `close()`, which is the only thing
+     that stops urwid's `MainLoop` or destroys the tk root. Instrumented on
+     this branch's own sibling-raise scenario: `close_count=0`,
+     `close_requested=False`, `rc=1` — a terminal left in raw mode, non-zero
+     exit, no message. `handle()` now splits the two conditions and runs a
+     guarded teardown on the `is_shutdown` branch (errors logged at error
+     level, never raised back into `LaunchService.__process_event`, which has
+     no per-handler `try`). Covered by three new unit cases and by
+     `close_count == 1` on the sibling-raise regression test.
+   - **Comment accuracy** — five comments added on this branch stated
+     supporting details the installed launch source contradicts (each
+     *conclusion* held; the reason did not). Corrected against
+     `/opt/ros/jazzy/.../launch/`: `LaunchService.__on_shutdown` is last only
+     among the *Shutdown-matching* handlers (`OnIncludeLaunchDescription` is
+     registered first); the `launch.actions.Shutdown` route sets `is_shutdown`
+     via `__on_shutdown`, which *is* an event handler; double `Shutdown`
+     delivery is specific to that route because `_shutdown()` sets
+     `__shutting_down` before the event is dispatched; the raising-teardown
+     test is pinned by `test_close_is_not_called_twice_on_shutdown`, not by
+     itself; a wedged poll chain does not wedge the asyncio loop.
+   - **Watchdog deadlock hazard**: `LaunchService.shutdown()` holds
+     `__loop_from_run_thread_lock` while blocking in `future.result()` with no
+     timeout, and `_prepare_run_loop`'s `finally` takes the same lock from the
+     loop thread — a watchdog racing a real shutdown wedges both permanently.
+     The watchdog now emits `Shutdown` onto the run loop with a bounded wait.
+   - **Test hygiene**: `live` is released on every exit of
+     `_wait_for_live_loop` (no stray daemon thread); the drain in
+     `_count_shutdown_handlers` moved into its own `try/finally` so a failure
+     is not buried under "Task was destroyed but it is pending!"; the
+     sibling-raise test now pins *which* stop condition fired.
+   - **TUI teardown reporting**: `tui/user_interface.py`'s `close()` wrapped
+     `self.loop.stop()` in a bare `except`, making the error-level log from
+     step 8 unreachable for the exact case it cites. Unwrapped; re-entry is
+     already prevented by the `_close_requested` guards in both callers.
+   - Judged and left alone by the reviewer, no action: `return_code == 1` in
+     the sibling-raise test (launch cannot produce 0 on that path) and the
+     commit grouping by logical change.
+
 ## Files to Change
 
 | File | Change |
 |------|--------|
-| `ros2launch_gui/event_handlers/on_query_user_interface.py` | `cancel_on_shutdown=False` + rationale comment; default `period` 0.2 → 0.1; `handle()` also stops on `context.is_shutdown` |
+| `ros2launch_gui/event_handlers/on_query_user_interface.py` | `cancel_on_shutdown=False` + rationale comment; default `period` 0.2 → 0.1; `handle()` also stops on `context.is_shutdown`, and tears the UI down on that branch since nothing else has |
 | `ros2launch_gui/api/user_interface.py` | non-debug `update_rate` 20.0 → 10.0; `_on_shutdown` sets `_close_requested` before `close()` and guards a raising teardown; re-entry guard; error-level teardown logging |
-| `test/test_on_query_user_interface.py` | New — fast unit test of `handle()`; asserts the rescheduled timer leaves no `Shutdown` handler, via public `matches()` rather than the private `cancel_on_shutdown` attribute; pins the poll rate on the handler production builds; covers the `context.is_shutdown` stop path |
+| `test/test_on_query_user_interface.py` | New — fast unit test of `handle()`; asserts the rescheduled timer leaves no `Shutdown` handler, via public `matches()` rather than the private `cancel_on_shutdown` attribute; pins the poll rate on the handler production builds; covers the `context.is_shutdown` stop path and the teardown it performs (once, raising close contained, not repeated when `close_requested` is already set) |
 | `test/test_poll_loop_handler_leak.py` | New — headless `LaunchService` test at the real 10 Hz: handler count constant, `run()` returns 0, shutdown completes even when backend teardown raises, when a *sibling* `OnShutdown` handler raises, and via the UI's own `Shutdown` action; `_on_shutdown` re-entrancy; all cases watchdog-bounded, fixed sample count |
-| `README.md` | Design paragraph: poll loop self-terminates via `close_requested` **or** `context.is_shutdown`; names the 10 Hz / 5 Hz rates, the shutdown-latency floor, and the paths not covered (SIGTERM/SIGQUIT, shutdown-when-idle) |
+| `README.md` | Design paragraph: poll loop self-terminates via `close_requested` **or** `context.is_shutdown` — described as the two different situations they are, including that only the second one has to tear the UI down itself; names the 10 Hz / 5 Hz rates, the shutdown-latency floor, and the paths not covered (SIGTERM/SIGQUIT, shutdown-when-idle) |
+| `ros2launch_gui/tui/user_interface.py` | `close()` no longer swallows a failing `self.loop.stop()`, so a terminal left in raw mode is actually reported |
 
 ## Principles Self-Check
 

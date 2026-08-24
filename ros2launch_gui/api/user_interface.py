@@ -151,7 +151,30 @@ class UserInterface:
             event, context)
 
     def _on_shutdown(self, event, context):
-        self.close()
+        # Set the flag *before* tearing anything down. It is what stops the
+        # UI poll chain (OnQueryUserInterface.handle returns None once it is
+        # set), and the poll timer is no longer cancelled by launch, so a
+        # backend close() that raises before reaching super().close() would
+        # otherwise leave the loop rescheduling forever — the launch service
+        # logs a handler exception and continues, it does not abort.
+        #
+        # Setting it first is independently correct for the Qt backend, whose
+        # close() -> closeEvent -> on_close() path checks the flag to avoid
+        # re-emitting Shutdown.
+        self._close_requested = True
+        try:
+            self.close()
+        except Exception as e:
+            # Re-raising under _debug is safe only because the flag is already
+            # set: the launch service swallows the exception and keeps running,
+            # so termination rests entirely on _close_requested being True by
+            # now. Non-debug behaviour matches _safe_callback.
+            if self._debug:
+                raise
+            return [
+                LogInfo(
+                    msg='Exception closing UI on shutdown: {}'.format(e))
+            ]
         return None
 
     # -- public interface -----------------------------------------------

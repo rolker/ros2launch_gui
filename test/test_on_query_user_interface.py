@@ -15,10 +15,18 @@ from ros2launch_gui.events import QueryUserInterface
 class _StubUserInterface:
     """Minimal stand-in for UserInterface, recording what the handler calls."""
 
-    def __init__(self, close_requested=False):
+    def __init__(self, close_requested=False, close_raises=False):
         self.close_requested = close_requested
+        self._close_raises = close_raises
         self.spin_count = 0
         self.pending_actions_calls = 0
+        self.close_count = 0
+
+    def close(self):
+        self.close_count += 1
+        if self._close_raises:
+            raise RuntimeError('simulated backend teardown failure')
+        self.close_requested = True
 
     def spin_once(self):
         self.spin_count += 1
@@ -55,16 +63,23 @@ def _count_shutdown_handlers(action: TimerAction) -> int:
     context = LaunchContext()
     loop = asyncio.new_event_loop()
     try:
-        context._set_asyncio_loop(loop)
-        action.execute(context)
-        shutdown_event = Shutdown()
-        count = sum(
-            1 for handler in context._event_handlers
-            if handler.matches(shutdown_event)
-        )
-        # Drain the timer task the action started, so the loop closes cleanly.
-        action.cancel()
-        loop.run_until_complete(action.get_asyncio_future())
+        try:
+            context._set_asyncio_loop(loop)
+            action.execute(context)
+            shutdown_event = Shutdown()
+            count = sum(
+                1 for handler in context._event_handlers
+                if handler.matches(shutdown_event)
+            )
+        finally:
+            # Drain the timer task the action started, so the loop closes
+            # cleanly. This has to run even when execute() or the count
+            # raises: closing the loop with a pending task emits "Task was
+            # destroyed but it is pending!", which would bury the real
+            # failure under an unrelated warning.
+            if action.get_asyncio_future() is not None:
+                action.cancel()
+                loop.run_until_complete(action.get_asyncio_future())
     finally:
         loop.close()
     return count
@@ -129,3 +144,43 @@ class TestOnQueryUserInterface(unittest.TestCase):
 
         assert result is None
         assert ui.spin_count == 0
+
+    def test_handle_tears_down_the_ui_when_context_is_shutdown(self):
+        # Nothing else will: _on_shutdown did not run on this route, and
+        # close() is the only thing that stops urwid's MainLoop or destroys
+        # the tk root. Without this the operator keeps a terminal in raw mode.
+        ui = _StubUserInterface(close_requested=False)
+        handler = OnQueryUserInterface(ui, period=0.1)
+        context = LaunchContext()
+        context._set_is_shutdown(True)
+
+        handler.handle(QueryUserInterface(), context)
+
+        assert ui.close_count == 1
+
+    def test_handle_does_not_let_a_raising_close_escape(self):
+        # The handler runs inside LaunchService.__process_event, which has no
+        # per-handler try: an escaping exception would abort the remaining
+        # handlers for this event.
+        ui = _StubUserInterface(close_requested=False, close_raises=True)
+        handler = OnQueryUserInterface(ui, period=0.1)
+        context = LaunchContext()
+        context._set_is_shutdown(True)
+
+        result = handler.handle(QueryUserInterface(), context)
+
+        assert result is None
+        assert ui.close_count == 1
+
+    def test_handle_does_not_close_twice_when_already_close_requested(self):
+        # close_requested means _on_shutdown already tore the UI down, so the
+        # is_shutdown branch must not run a second teardown.
+        ui = _StubUserInterface(close_requested=True)
+        handler = OnQueryUserInterface(ui, period=0.1)
+        context = LaunchContext()
+        context._set_is_shutdown(True)
+
+        result = handler.handle(QueryUserInterface(), context)
+
+        assert result is None
+        assert ui.close_count == 0

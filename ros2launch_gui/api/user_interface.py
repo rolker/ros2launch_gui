@@ -153,12 +153,18 @@ class UserInterface:
 
     def _on_shutdown(self, event, context):
         # Re-entry guard, matching _safe_callback's. Launch can deliver
-        # Shutdown to this handler more than once: if any OnShutdown handler
-        # raises, LaunchService.__process_event aborts before reaching
-        # LaunchService.__on_shutdown, so __shutting_down is never set and
-        # run_async's catch-all emits a second Shutdown. Backend teardown is
-        # rarely safe to run twice (a second tk root.destroy() raises
-        # TclError), so the repeat must be swallowed here.
+        # Shutdown to this handler twice, but only on one route: a
+        # launch.actions.Shutdown — what on_close() queues — never calls
+        # LaunchService._shutdown(), so __shutting_down is set only by
+        # LaunchService.__on_shutdown. If any OnShutdown handler raises,
+        # __process_event aborts before reaching that handler, the flag stays
+        # False, and run_async's catch-all emits a second Shutdown. Every
+        # other route (SIGINT, shutdown(), idle, the catch-all itself) goes
+        # through _shutdown(), which sets __shutting_down before the event is
+        # ever dispatched — emit_event_sync only queues it — so no second
+        # delivery is possible there. Backend teardown is rarely safe to run
+        # twice (a second tk root.destroy() raises TclError), so the repeat
+        # must be swallowed here.
         if self._close_requested:
             return None
 
@@ -180,8 +186,10 @@ class UserInterface:
             # Re-raising under _debug does not merely get logged: launch's
             # __process_event has no per-handler try, so the raise aborts the
             # remaining Shutdown handlers (including
-            # LaunchService.__on_shutdown, registered first and therefore last
-            # in the deque), skips the matching context._pop_locals(), and
+            # LaunchService.__on_shutdown, which register_event_handler's
+            # appendleft leaves last among the Shutdown-matching handlers —
+            # LaunchService registers it in __init__, ahead of every user
+            # handler), skips the matching context._pop_locals(), and
             # leaves run() returning 1. That is acceptable in debug mode —
             # surfacing the failure is the point — and termination is
             # unaffected because _close_requested is already set above and

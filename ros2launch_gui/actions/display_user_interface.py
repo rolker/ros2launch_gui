@@ -24,8 +24,6 @@ class DisplayUserInterface(Action):
     ):
         """
         Create a DisplayUserInterface action.
-        
-        
 
         :param launch_description: The launch description to display the user interface for.
         :param ui_launcher: The function to use to create the user interface.

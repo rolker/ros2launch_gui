@@ -21,7 +21,7 @@ from ros2launch_gui.api.describe import DescribedLaunchEntity
 class LaunchDescriptionWidget(QWidget):
     """
     A widget that displays a launch description as a tree.
-    
+
     The tree is updated when the launch is executed showing the status of processes.
     """
 

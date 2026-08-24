@@ -17,7 +17,9 @@ from launch_ros.actions import SetParametersFromFile
 
 
 class DescribedLaunchEntity:
-    """A human readable description of launch entity and its children.
+    """
+    A human readable description of launch entity and its children.
+
     This is used to decouple the launch context from the description to be used
     in a GUI which may be running in a different thread.
     """

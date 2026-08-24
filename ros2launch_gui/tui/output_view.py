@@ -4,7 +4,8 @@ import urwid
 
 
 class OutputView(urwid.ListBox):
-    """Log output view with per-process and total scrollback caps.
+    """
+    Log output view with per-process and total scrollback caps.
 
     Lines are stored in both a global deque and per-process deques.  Selecting
     the backing deque for a given filter is O(1), and rebuilding the visible

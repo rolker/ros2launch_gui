@@ -10,6 +10,7 @@ registered handler count stays constant while polling), plus the termination
 invariants that removing launch's own timer-cancel path made load-bearing.
 """
 
+import asyncio
 import threading
 import time
 import unittest
@@ -18,6 +19,7 @@ from launch import LaunchDescription
 from launch import LaunchService
 from launch.actions import RegisterEventHandler
 from launch.event_handlers import OnShutdown
+from launch.events import Shutdown
 
 from ros2launch_gui.actions import DisplayUserInterface
 from ros2launch_gui.api import UserInterface
@@ -46,6 +48,34 @@ WATCHDOG_SECONDS = 5.0
 SAMPLING_SECONDS = (SETTLE_SAMPLES + STEADY_SAMPLES) * SAMPLE_PERIOD
 
 
+def _request_shutdown(launch_service):
+    """
+    Ask the service to shut down without the blocking, lock-holding path.
+
+    LaunchService.shutdown() holds __loop_from_run_thread_lock while blocking
+    in emit_event's future.result(), which has no timeout, and
+    _prepare_run_loop's finally takes that same lock from the loop thread. A
+    watchdog that races a real shutdown can therefore wedge both threads
+    permanently — the exact outcome the watchdog exists to prevent. Emitting
+    the Shutdown event straight onto the run loop with a bounded wait takes
+    no service lock and cannot outlive the timeout.
+    """
+    loop = launch_service.context.asyncio_loop
+    if loop is None:
+        # The service is not running; shutdown() would be a no-op too.
+        return
+    try:
+        future = asyncio.run_coroutine_threadsafe(
+            launch_service.context.emit_event(
+                Shutdown(reason='test watchdog')),
+            loop)
+        future.result(timeout=WATCHDOG_SECONDS)
+    except Exception:
+        # A failure here is reported by the assertions on timed_out; it must
+        # never take the test process down from a daemon thread.
+        pass
+
+
 def _raise_on_shutdown(event, context):
     """Stand in for a user launch description whose OnShutdown handler fails."""
     raise RuntimeError('simulated sibling OnShutdown failure')
@@ -61,6 +91,14 @@ class _HeadlessUserInterface(UserInterface):
         self._close_after_spins = close_after_spins
         self.spin_count = 0
         self.close_count = 0
+        self.shutdown_handler_calls = 0
+
+    def _on_shutdown(self, event, context):
+        # Counted so a test can pin *which* stop condition fired: zero here
+        # means the UI's own OnShutdown handler never ran, so anything that
+        # stopped the poll chain did so via context.is_shutdown.
+        self.shutdown_handler_calls += 1
+        return super()._on_shutdown(event, context)
 
     def spin_once(self):
         self.spin_count += 1
@@ -133,19 +171,25 @@ class _HeadlessRun:
         def _wait_for_live_loop():
             """Block until the service is actually processing events."""
             deadline = time.monotonic() + STARTUP_TIMEOUT
-            while time.monotonic() < deadline:
-                if finished.is_set():
-                    return True
-                if self.ui is not None and self.ui.spin_count > 0:
-                    live.set()
-                    return True
-                time.sleep(0.01)
-            return False
+            try:
+                while time.monotonic() < deadline:
+                    if finished.is_set():
+                        return True
+                    if self.ui is not None and self.ui.spin_count > 0:
+                        return True
+                    time.sleep(0.01)
+                return False
+            finally:
+                # Released on *every* exit, including a run that finished
+                # before the first poll: otherwise the watchdog thread stays
+                # parked in live.wait() past run()'s join and outlives the
+                # test as a stray daemon thread.
+                live.set()
 
         def sampler():
             if not _wait_for_live_loop():
                 self.startup_timed_out = True
-                launch_service.shutdown()
+                _request_shutdown(launch_service)
                 return
             for _ in range(SETTLE_SAMPLES + STEADY_SAMPLES):
                 if finished.is_set():
@@ -166,14 +210,14 @@ class _HeadlessRun:
             self.timed_out = True
             if self.ui is not None:
                 # Force the stop condition the code under test failed to
-                # reach, so the test fails instead of hanging forever. This
-                # must come *before* launch_service.shutdown() below: that
-                # call routes to emit_event -> future.result() with no
-                # timeout, which would itself block forever while the poll
-                # chain is wedged. Setting the flag first guarantees the run
-                # loop drains and the future completes.
+                # reach, so the test fails instead of hanging forever. A
+                # wedged poll chain does not wedge the asyncio loop — the
+                # chain is a rescheduling timer, not a blocking call — so the
+                # shutdown request below would still be delivered without
+                # this. It is here so the run actually ends rather than
+                # re-arming the timer after the Shutdown event.
                 self.ui._close_requested = True
-            launch_service.shutdown()
+            _request_shutdown(launch_service)
 
         sampler_thread = threading.Thread(target=sampler, daemon=True)
         watchdog_thread = threading.Thread(target=watchdog, daemon=True)
@@ -214,8 +258,16 @@ class TestPollLoopHandlerLeak(unittest.TestCase):
             'handler count grew during polling: {}'.format(run.samples)
 
     def test_shutdown_completes_when_backend_teardown_raises(self):
-        # _on_shutdown sets _close_requested before calling close(), so a
-        # raising teardown cannot leave the poll chain rescheduling forever.
+        # A backend whose teardown raises must not abort the shutdown: the
+        # non-debug path logs and returns, so run() still exits 0.
+        #
+        # Note this test does *not* pin _on_shutdown's flag-before-teardown
+        # ordering, despite covering a raising teardown: the sampler drives
+        # shutdown via LaunchService.shutdown(), which sets is_shutdown
+        # directly, so the poll chain stops on that condition either way
+        # (mutation-checked — moving the assignment after self.close() leaves
+        # this test green). test_close_is_not_called_twice_on_shutdown is what
+        # fails under that mutation.
         run = _HeadlessRun(close_raises=True).run()
 
         assert not run.timed_out, \
@@ -239,6 +291,21 @@ class TestPollLoopHandlerLeak(unittest.TestCase):
         # this test is that run() returns at all.
         assert run.return_code == 1, \
             'run() returned {}'.format(run.return_code)
+        # Pin the mechanism, not just the outcome. Without this the test
+        # would silently degrade into a duplicate of the ordinary-shutdown
+        # test if handler ordering ever changed and _on_shutdown started
+        # running again.
+        assert run.ui.shutdown_handler_calls == 0, \
+            'UserInterface._on_shutdown ran {} times — the sibling raise no ' \
+            'longer aborts the dispatch, so this test is not covering the ' \
+            'context.is_shutdown path any more'.format(
+                run.ui.shutdown_handler_calls)
+        # ...and the UI is still torn down on that path. close() is the only
+        # thing that stops urwid's MainLoop or destroys the tk root; skipping
+        # it leaves the operator a terminal in raw mode and no message.
+        assert run.ui.close_count == 1, \
+            'close() ran {} times, expected exactly 1'.format(
+                run.ui.close_count)
 
     def test_shutdown_completes_via_ui_close_action(self):
         # The path users actually take: on_close() queues a Shutdown *action*,

@@ -399,3 +399,62 @@ No drift. All seven plan steps landed as written, and both plan-review must-fixe
 - `return_code` is asserted as **1** in the sibling-raise test, not 0: launch marks the aborted handler dispatch as an error. The invariant under test is that `run()` returns at all. This is stated in the test.
 - Nothing deferred; every finding was actioned.
 - Commits are grouped by logical change rather than one-per-finding where findings shared a file region (the three `user_interface.py` comment/behaviour fixes land together in `7e4847b`, with the Qt-note correction split out in `2b275c0`). Every commit leaves the suite green.
+
+## Local Review (Pre-Push)
+**Status**: complete
+**When**: 2026-08-24 00:39 -04:00
+**By**: Claude Code Agent (Claude Opus)
+**Verdict**: changes-requested
+
+**Branch**: feature/issue-30 at `a719ae1`
+**Mode**: pre-push
+**Depth**: Deep (reason: shutdown/lifecycle correctness — verification round on a removed termination path)
+**Must-fix**: 1 | **Suggestions**: 9
+**Round**: 2 | **Ship**: recommended — round-1 must-fixes all verified genuinely fixed; the one remaining item is a precise, mechanical fix, and must-fix count fell 3 → 1
+
+**Specialists**: Static Analysis (ament_flake8 + ament_pep257, clean) · Governance · Plan Drift · Claude Adversarial x2 (Lens A + Lens B) · Local Adversarial off (--no-local; round-2 verification pass)
+
+### Verification performed (round-1 must-fixes)
+
+- **Must-fix 1 — CLOSED, independently reproduced.** Ran a standalone probe building the same launch description the new test uses and dumped the Shutdown-matching handler deque in dispatch order: `[0] raising sibling OnShutdown`, `[1] UserInterface._on_shutdown`, `[2] LaunchService.__on_shutdown`. The run ended with `return_code=1`, `spins=3`, **`close_requested=False`** — so `context.is_shutdown` is provably the only condition that stopped the loop. The belt holds and the new test covers the reported path, not a look-alike.
+- **The belt's guarantee checked against installed launch source**, not taken on trust: `LaunchService._shutdown()` sets `self.__context._set_is_shutdown(True)` at `launch_service.py:413`, *outside* the `if not self.__shutting_down` block, so it is unconditional; `run_async`'s `except Exception` at `launch_service.py:351-358` calls `_shutdown()` for exactly the raising-handler case. Full route enumeration found no path where the poll chain outlives the run: SIGINT / `shutdown()` / idle / catch-all all set `is_shutdown`; the `Shutdown` *action* route sets it via `LaunchService.__on_shutdown`, and if a sibling raise aborts that dispatch the catch-all sets it one iteration later; SIGTERM/SIGQUIT cancel the run task outright (`launch_service.py:211`, `347-350`) so the loop cannot outlive it.
+- **Must-fix 2 — CLOSED.** The `api/user_interface.py` re-raise comment now describes what launch actually does (no per-handler `try`; dispatch aborts; `_pop_locals()` skipped; `run()` returns 1). Matches source.
+- **Must-fix 3 — CLOSED.** Public `LaunchService.context` property in use; the false "no public accessor" comment is gone; `grep` confirms no `_LaunchService__` or `_TimerAction__` coupling anywhere in `test/` or `ros2launch_gui/`.
+- `ament_flake8` and `ament_pep257` re-run on the package: **No problems found**.
+- Lens B ran the leak suite 5x (~9.4 s each, identical) and once pinned to a single contended core (12.6 s) — no flakiness; measured `spin_count=25` against the test's `>= 10` threshold, and confirmed `_event_handlers` flat at 11 with exactly 1 live `TimerAction` across 105 polls.
+
+### Findings
+
+- [ ] (must-fix) The `context.is_shutdown` route terminates the poll loop but never tears the UI down — instrumented on the PR's own scenario: `close_count=0, close_requested=False, rc=1`. `close()` is the only thing that calls `urwid`'s `loop.stop()` / tk's `root.destroy()`, so the operator gets a shell left in raw mode, exit code 1, no message. Not a regression (the same case previously hung, which is worse), but this PR adds the code, the test and the prose for this path, and the README presents `is_shutdown` as a clean equivalent of `close_requested` while conceding lost cleanup only for SIGTERM/SIGQUIT. Cross-pass confirmed (Lens A + Lens B, independently). Preferred fix: run the same guarded teardown `_on_shutdown` does on the `is_shutdown and not close_requested` branch before returning `None` — the handler is guaranteed exactly one post-shutdown dispatch, and `close()` setting `_close_requested` makes the existing re-entry guard cover double teardown; wrap it so a raising backend cannot escape into `handle()`. Add `assert run.ui.close_count == 1`. Minimum acceptable alternative: correct README + the handler comment to state that this route exits without UI cleanup — `ros2launch_gui/event_handlers/on_query_user_interface.py:42`, `README.md:39`
+- [ ] (suggestion) Comment says `LaunchService.__on_shutdown` is "registered first and therefore last in the deque" — verified wrong: `launch_service.py:78` registers `OnIncludeLaunchDescription()` first, `:79` registers `OnShutdown(__on_shutdown)` second, so it is last only among *Shutdown-matching* handlers. Conclusion holds; the stated reason does not — `ros2launch_gui/api/user_interface.py:183-184`
+- [ ] (suggestion) The `is_shutdown`-provenance comment lists SIGINT / `shutdown()` / idle / catch-all and concludes it "does not depend on any event handler completing" — incomplete on the most common route: a `Shutdown` *action* never calls `_shutdown()`, and `is_shutdown` is then set only by `LaunchService.__on_shutdown`, which *is* an event handler. The guarantee survives (a raising sibling routes to the catch-all) but by a different mechanism than the comment gives — `ros2launch_gui/event_handlers/on_query_user_interface.py:37-41`
+- [ ] (suggestion) The re-entry-guard comment overstates when double delivery happens: `_shutdown()` sets `__shutting_down = True` unconditionally *before* the event is dispatched, so SIGINT / `shutdown()` / idle / catch-all never re-emit. Double delivery is specific to the `launch.actions.Shutdown` route. The guard is load-bearing; narrow the claim — `ros2launch_gui/api/user_interface.py:155-161`
+- [ ] (suggestion) `test_shutdown_completes_when_backend_teardown_raises` passes for a different reason than its comment states. Mutation-verified: moving the flag assignment after `self.close()` leaves this test green, because the sampler drives shutdown via `launch_service.shutdown()`, which sets `is_shutdown` directly. The ordering *is* pinned — by `test_close_is_not_called_twice_on_shutdown`, which fails under the same mutation. Point the comment at the test that actually covers it — `test/test_poll_loop_handler_leak.py:216-224`
+- [ ] (suggestion) The sibling-raise test never asserts which stop condition fired, so it would silently degrade into a duplicate of the ordinary-shutdown test if handler ordering ever flipped. Non-vacuous today (verified), but lock it in: `assert run.ui.close_count == 0` and `assert not run.ui.close_requested` — `test/test_poll_loop_handler_leak.py:226-241`
+- [ ] (suggestion) The watchdog comment's rationale is wrong — a wedged poll chain does not wedge the asyncio loop, so `emit_event` → `future.result()` would still resolve. Separately there is a real (narrow) hazard: `LaunchService.shutdown()` from a non-main thread holds `__loop_from_run_thread_lock` while blocking in `future.result()` with no timeout, and `_prepare_run_loop`'s `finally` takes the same lock from the loop thread — if the watchdog races a real shutdown, both deadlock permanently, which is the exact outcome the watchdog exists to prevent. Consider a bounded `run_coroutine_threadsafe(...).result(timeout=…)` instead — `test/test_poll_loop_handler_leak.py:158-176`
+- [ ] (suggestion) `live` is set only on the success path of `_wait_for_live_loop`, so a run that finishes before the first poll leaves the watchdog blocked in `live.wait(STARTUP_TIMEOUT)` past `run()`'s 5 s join, as a stray daemon thread. Harmless, easy to tidy — `test/test_poll_loop_handler_leak.py:133-143`
+- [ ] (suggestion) In `_count_shutdown_handlers` the drain (`action.cancel()` + `run_until_complete`) sits in the `try` ahead of `loop.close()` in `finally`, so a raise from `execute()` or the count closes the loop with a pending task and emits "Task was destroyed but it is pending!", masking the real failure. Nested `try/finally` — `test/test_on_query_user_interface.py:56-69`
+- [ ] (suggestion) The new error-level teardown log is unreachable for the failure it cites: the TUI's `close()` wraps `self.loop.stop()` in a bare `except Exception: pass`, swallowing the raw-mode failure one level below. Either let it propagate into the new reporting path or stop citing that case — `ros2launch_gui/tui/user_interface.py:76-81` vs `ros2launch_gui/api/user_interface.py:191-195`
+
+### Judged explicitly
+
+- **`return_code == 1` in the sibling-raise test is correct, not a weakening.** My own probe on that path produced `rc=1`, so asserting `0` would assert something launch cannot produce: the aborted dispatch propagates to `run_async`'s catch-all, which sets `return_code = 1` before recovering. `== 1` is an exact equality — strictly stronger than "returned at all" — and the anti-hang invariant is carried by the separate `not timed_out` assertion. Round 1's insistence on `== 0` applied to the *raising-teardown* test, where the non-debug path genuinely does exit 0; different test, different ground truth. Both are defensible. The real soft spot in this test is not the number but that nothing pins *which* stop condition fired (suggestion above).
+- **Grouping commits by file region is acceptable here.** `7e4847b` bundles the re-entry guard, the flag-before-teardown ordering, and the two comments that exist to explain them — that is one logical change to one method, and splitting it would produce commits that do not stand alone. Revert granularity is preserved where it matters: the behavioral change is isolated in `9b943ae`, tests in `ea2f49c` / `22581fd`, and the genuinely independent Qt-note correction *was* split out into `2b275c0`. The workspace rule is one logical change per commit, not one commit per review finding. No action.
+
+### Governance
+
+- Principles: "A change includes its consequences" — **Concern**: the termination consequence is now complete and correct, but the *cleanup* consequence of the new stop path is neither covered by a test nor stated in the README (the must-fix). "Test what breaks" — **Pass**: every new test was mutation-checked by an independent reviewer; two were shown to be pinned by a different test than their comment claims, which is a comment defect, not a coverage hole. "Never document from assumptions" — **Concern**: five comments added on this branch state supporting details the installed launch source contradicts. Each conclusion is correct, so none rise to must-fix, but this is the same failure class round 1 raised — verify comment claims against source before the next push.
+- ADR-0008 (ROS 2 conventions): compliant — ament linters clean. ADR-0013 (progress.md vocabulary): compliant. ADR-0002 (worktree isolation): compliant. ADR-0018 (local-first CI): merge gate remains a full-scope `ci_local.sh` attestation; lint baseline green so it is reachable.
+- Commit hygiene: 19 commits, all authored `Claude Code Agent <roland+claude-code@ccom.unh.edu>`, no issue-closing keywords anywhere in the commit bodies (grep-verified).
+- Consequence check: no ROS parameters, topics, or services changed; README updated; plan synced with a "Review round 1 follow-through" section.
+- Pre-existing gap, not this PR: repo has no root `AGENTS.md` / `.agents/README.md` / pre-commit config.
+
+### Plan Adherence
+
+No drift. Plan step 8 records the round-1 follow-through and matches what landed. One stale phrase survives at `plan.md:59` ("otherwise return a `LogInfo`"), superseded within the same document by step 8's "error level instead of a `LogInfo` action" — cosmetic, below the suggestion threshold.
+
+### Next actions
+
+- [ ] Address the single must-fix (guarded teardown on the `is_shutdown` branch + test assertion, or the README/comment correction as the minimum), then push — a third full review round is not warranted
+- [ ] Optional, cheap, and worth batching into the same commit: the five comment-accuracy corrections and the two test-hardening assertions
+- [ ] Merge gate: full-scope `ci_local.sh` attestation (no hosted CI in this repo)

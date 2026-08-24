@@ -13,6 +13,7 @@ from launch.event_handlers import OnProcessStart
 from launch.event_handlers import OnShutdown
 from launch.events import IncludeLaunchDescription
 from launch.events.process import ProcessIO
+from launch.logging import get_logger
 
 from launch_ros.events.lifecycle import StateTransition
 
@@ -151,30 +152,47 @@ class UserInterface:
             event, context)
 
     def _on_shutdown(self, event, context):
-        # Set the flag *before* tearing anything down. It is what stops the
-        # UI poll chain (OnQueryUserInterface.handle returns None once it is
-        # set), and the poll timer is no longer cancelled by launch, so a
-        # backend close() that raises before reaching super().close() would
-        # otherwise leave the loop rescheduling forever — the launch service
-        # logs a handler exception and continues, it does not abort.
+        # Re-entry guard, matching _safe_callback's. Launch can deliver
+        # Shutdown to this handler more than once: if any OnShutdown handler
+        # raises, LaunchService.__process_event aborts before reaching
+        # LaunchService.__on_shutdown, so __shutting_down is never set and
+        # run_async's catch-all emits a second Shutdown. Backend teardown is
+        # rarely safe to run twice (a second tk root.destroy() raises
+        # TclError), so the repeat must be swallowed here.
+        if self._close_requested:
+            return None
+
+        # Set the flag *before* tearing anything down. It is one of the two
+        # things that stop the UI poll chain (OnQueryUserInterface.handle
+        # returns None once it is set), and the poll timer is no longer
+        # cancelled by launch, so a backend close() that raises before
+        # reaching super().close() would otherwise leave the loop
+        # rescheduling.
         #
-        # Setting it first is independently correct for the Qt backend, whose
-        # close() -> closeEvent -> on_close() path checks the flag to avoid
-        # re-emitting Shutdown.
+        # Setting it first is also what lets the Qt backend's
+        # close() -> main_window.close() -> closeEvent -> on_close() path
+        # avoid re-emitting Shutdown.
         self._close_requested = True
         try:
             self.close()
         except Exception as e:
-            # Re-raising under _debug is safe only because the flag is already
-            # set: the launch service swallows the exception and keeps running,
-            # so termination rests entirely on _close_requested being True by
-            # now. Non-debug behaviour matches _safe_callback.
+            # Re-raising under _debug does not merely get logged: launch's
+            # __process_event has no per-handler try, so the raise aborts the
+            # remaining Shutdown handlers (including
+            # LaunchService.__on_shutdown, registered first and therefore last
+            # in the deque), skips the matching context._pop_locals(), and
+            # leaves run() returning 1. That is acceptable in debug mode —
+            # surfacing the failure is the point — and termination is
+            # unaffected because _close_requested is already set above and
+            # OnQueryUserInterface also stops on context.is_shutdown.
             if self._debug:
                 raise
-            return [
-                LogInfo(
-                    msg='Exception closing UI on shutdown: {}'.format(e))
-            ]
+            # Error level, not LogInfo: a failed teardown means the window is
+            # still up or the terminal is still in raw mode, which the user
+            # has to know about even though the exit code stays 0.
+            get_logger('ros2launch_gui').error(
+                'Exception closing UI on shutdown: {}'.format(e))
+            return None
         return None
 
     # -- public interface -----------------------------------------------

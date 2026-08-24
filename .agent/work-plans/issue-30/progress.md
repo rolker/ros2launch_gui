@@ -121,3 +121,35 @@ handler's return value). A `QTimer` replacement is explicitly out of scope.
 - [ ] Decide Q4 (harden `_close_requested` against a raising subclass teardown)
 - [ ] Merge gate: full-scope `ci_local.sh` attestation (no hosted CI in this repo)
 - [ ] Follow-up candidate (not this PR): repo lacks root `AGENTS.md` / `.agents/README.md` / pre-commit config
+
+## Plan Authored
+**Status**: complete
+**When**: 2026-08-23 22:49 -04:00
+**By**: Claude Code Agent (Claude Opus)
+
+**Plan**: `.agent/work-plans/issue-30/plan.md` at `ca22995`
+**Branch**: feature/issue-30 at `ca22995`
+**Phases**: single
+
+Core fix: pass `cancel_on_shutdown=False` at `on_query_user_interface.py:26` —
+the only `TimerAction` in the repo — with a call-site comment recording the
+upstream unguarded-Shutdown-handler cause (Q2: local note only, no upstream
+item) and the resulting one-poll-period shutdown-latency floor. Operator-scoped
+extras in the same PR: poll rate aligned at 10 Hz in both places (handler default
+0.2 → 0.1; `UserInterface` non-debug 20.0 → 10.0, debug 5.0 left alone), and
+`_close_requested` made fail-safe by setting it in `_on_shutdown` before
+`close()` and guarding a raising backend teardown. Tests: a fast unit test on
+`handle()` plus a headless `LaunchService` test asserting the registered
+handler count stays constant across many polls (steady-state symptom) and that
+shutdown completes even when teardown raises. README "Design" paragraph updated.
+Architecture (launch-driven poll loop) unchanged. Merge gate is a full-scope
+`ci_local.sh` attestation — this repo has no hosted CI.
+
+### Open questions
+- [ ] No open questions — Q1-Q4 were decided by the operator; plan is review-plan-ready.
+
+### Actions
+- [ ] Implement steps 1-7 of the plan (fix, rate alignment, `_on_shutdown` hardening, two tests, README)
+- [ ] Run `/review-code` pre-push before opening the PR
+- [ ] Merge gate: full-scope `ci_local.sh` attestation (no hosted CI in this repo)
+- [ ] Follow-up candidate (not this PR): repo lacks root `AGENTS.md` / `.agents/README.md` / pre-commit config

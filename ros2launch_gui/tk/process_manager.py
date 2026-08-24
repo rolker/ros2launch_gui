@@ -24,7 +24,7 @@ class ProcessList(ttk.Frame):
         self.tree_ids = {}
 
     def get_item_id(self, process_name: str) -> str:
-        if not process_name in self.tree_ids:
+        if process_name not in self.tree_ids:
             self.tree_ids[process_name] = self.tree.insert('', 'end', text=process_name, values=(0, 'unknown'))
         return self.tree_ids[process_name]
 
@@ -66,7 +66,7 @@ class ProcessIOView(ttk.Frame):
                 self.text.insert('end', '[{}] {}\n'.format(process_name, line))
         else:
             self.text.insert('end', data)
-        #self.text.see('end')
+        # self.text.see('end')
         self.text.config(state='disabled')
 
 

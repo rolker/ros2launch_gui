@@ -8,7 +8,7 @@ from ros2launch_gui.ansi import ansi_to_html
 class ProcessOutputWidget(QWidget):
     """Widget to display output from launch processes."""
 
-    def __init__(self, parent, show_process_name = True):
+    def __init__(self, parent, show_process_name=True):
         """Create a ProcessOutputWidget."""
         super().__init__(parent)
 

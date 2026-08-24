@@ -10,7 +10,7 @@ from .launch_description_widget import LaunchDescriptionWidget
 
 
 class MainWindow(QMainWindow):
-    def __init__(self, ui: 'UserInterface'=None):
+    def __init__(self, ui: 'UserInterface' = None):
         super().__init__()
 
         self._ui = ui

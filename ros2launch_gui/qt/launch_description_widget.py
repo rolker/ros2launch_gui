@@ -157,7 +157,7 @@ class LaunchDescriptionWidget(QWidget):
                     lambda: self._ui.add_pending_action(
                         EmitEvent(
                             event=SignalProcess(
-                                signal_number= signal.SIGINT,
+                                signal_number=signal.SIGINT,
                                 process_matcher=matches_pid(pid)
                             )
                         )
@@ -231,7 +231,7 @@ class LaunchDescriptionWidget(QWidget):
     def add_launch_entity_to_trees(
         self,
         launch_entity: DescribedLaunchEntity,
-        parent: DescribedLaunchEntity=None,
+        parent: DescribedLaunchEntity = None,
         status=None
     ):
         if launch_entity.id in self.entity_items:
@@ -254,7 +254,7 @@ class LaunchDescriptionWidget(QWidget):
                             parent_item = self.entity_items[parent.id][tree_type]
                             if parent_item is not None:
                                 if launch_entity.type_name == 'DeclareLaunchArgument':
-                                    if not parent.id in self.launch_arguments_items:
+                                    if parent.id not in self.launch_arguments_items:
                                         self.launch_arguments_items[parent.id] = QTreeWidgetItem(['Launch Arguments', '', '', ''])
                                         parent_item.addChild(self.launch_arguments_items[parent.id])
                                     parent_item = self.launch_arguments_items[parent.id]

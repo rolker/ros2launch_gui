@@ -21,7 +21,7 @@ class GuiOption(OptionExtension):
         launch_description: LaunchDescription,
         args
     ) -> Tuple[LaunchDescription,]:
-        if(args.gui):
+        if args.gui:
             return LaunchDescription(
                 [
                     DisplayUserInterface(launch_description=launch_description, debug=args.debug),

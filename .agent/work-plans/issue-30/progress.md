@@ -332,17 +332,17 @@ unrelated to duration after).
 
 ### Findings
 
-- [ ] (must-fix) Stop condition does not cover every path: a sibling `OnShutdown` handler that raises aborts dispatch before `UserInterface._on_shutdown` runs, so `_close_requested` is never set and the poll chain reschedules forever — reproduced: hung, 75 spins, `run()` never returned. Reachable from any `OnShutdown` in the user launch description this tool exists to display, and from `ExecuteLocal`'s per-process handler. One-line belt `or context.is_shutdown` verified to close it (1.5 s, 15 spins, clean return) — `ros2launch_gui/event_handlers/on_query_user_interface.py:22`
-- [ ] (must-fix) Comment is factually wrong — launch does not "swallow the exception and keep running": `LaunchService.__process_event` has no per-handler try, so re-raising aborts the remaining Shutdown handlers including `LaunchService.__on_shutdown` (registered first ⇒ last in the deque), skips the matching `_pop_locals()`, and sets `return_code=1`. Cross-pass confirmed. Fix the comment or drop the debug re-raise — `ros2launch_gui/api/user_interface.py:168-171`
-- [ ] (must-fix) Comment claims "LaunchService exposes no public accessor for its context" — `LaunchService.context` is a public property (`launch_service.py:436`). Use it and delete the false justification for the name-mangled access — `test/test_poll_loop_handler_leak.py:82-83`
-- [ ] (suggestion) `_on_shutdown` is not idempotent, so `close()` runs twice in debug mode (`_safe_callback` closes and re-raises, launch re-emits Shutdown); `tk`'s unguarded `root.destroy()` raises `TclError` on the second call. Add the `if self._close_requested: return None` re-entry guard `_safe_callback` already has — `ros2launch_gui/api/user_interface.py:153`
-- [ ] (suggestion) `test_default_period_is_10_hz` does not test its stated coupling — it pins a constructor default production never uses (`UserInterface.__init__` always passes `period=` explicitly), so reverting `update_rate` to 20.0 leaves it green. Assert the `OnQueryUserInterface` that `UserInterface.__init__` actually builds. Cross-pass confirmed — `test/test_on_query_user_interface.py:63-66`
-- [ ] (suggestion) Headless-test sampling is load-sensitive with a misleading failure message: the sample count is wall-clock-derived (`len(steady) >= 10` can fail under load), and `launch_service.shutdown()` is a no-op while `__loop_from_run_thread is None`, so a slow main thread silently drops the shutdown request and the watchdog blames the code under test. Use a fixed sample count and gate the sampler on the loop being live. Cross-pass confirmed — `test/test_poll_loop_handler_leak.py:87-92`
-- [ ] (suggestion) The watchdog's own `launch_service.shutdown()` routes to `emit_event` → `future.result()` with no timeout, which blocks forever in exactly the wedged-loop case the watchdog exists to break. It works only because `ui._close_requested = True` is set on the preceding line — document that ordering or drop the call — `test/test_poll_loop_handler_leak.py:99-102`
-- [ ] (suggestion) No test covers the path users actually take: GUI window close / TUI `q` → `on_close()` → `Shutdown` *action*, the only path that bypasses `LaunchService._shutdown()` and leaves `LaunchService.__on_shutdown` as the sole setter of `__shutting_down` — `test/test_poll_loop_handler_leak.py`
-- [ ] (suggestion) Qt comment overstates the change: `qt/main.py:76` already calls `super().close()` before `main_window.close()`, so the flag was set before `closeEvent` even pre-change — `ros2launch_gui/api/user_interface.py:161-163`
-- [ ] (suggestion) A failed UI teardown surfaces as `LogInfo` plus exit code 0 — consistent with `_safe_callback` by design, but a genuine teardown failure (window left up, terminal left in raw mode) warrants error-level logging — `ros2launch_gui/api/user_interface.py:174-177`
-- [ ] (suggestion) The README's new termination story does not cover SIGTERM/SIGQUIT (the run task is cancelled, no Shutdown is emitted, `close()` never runs, TUI leaves the terminal in raw mode) or launch-idle (never fires while the poll chain holds a pending timer future). Both pre-existing — scope the claim or file a follow-up — `README.md:39`
+- [x] (must-fix) Stop condition does not cover every path: a sibling `OnShutdown` handler that raises aborts dispatch before `UserInterface._on_shutdown` runs, so `_close_requested` is never set and the poll chain reschedules forever — reproduced: hung, 75 spins, `run()` never returned. Reachable from any `OnShutdown` in the user launch description this tool exists to display, and from `ExecuteLocal`'s per-process handler. One-line belt `or context.is_shutdown` verified to close it (1.5 s, 15 spins, clean return) — `ros2launch_gui/event_handlers/on_query_user_interface.py:22`
+- [x] (must-fix) Comment is factually wrong — launch does not "swallow the exception and keep running": `LaunchService.__process_event` has no per-handler try, so re-raising aborts the remaining Shutdown handlers including `LaunchService.__on_shutdown` (registered first ⇒ last in the deque), skips the matching `_pop_locals()`, and sets `return_code=1`. Cross-pass confirmed. Fix the comment or drop the debug re-raise — `ros2launch_gui/api/user_interface.py:168-171`
+- [x] (must-fix) Comment claims "LaunchService exposes no public accessor for its context" — `LaunchService.context` is a public property (`launch_service.py:436`). Use it and delete the false justification for the name-mangled access — `test/test_poll_loop_handler_leak.py:82-83`
+- [x] (suggestion) `_on_shutdown` is not idempotent, so `close()` runs twice in debug mode (`_safe_callback` closes and re-raises, launch re-emits Shutdown); `tk`'s unguarded `root.destroy()` raises `TclError` on the second call. Add the `if self._close_requested: return None` re-entry guard `_safe_callback` already has — `ros2launch_gui/api/user_interface.py:153`
+- [x] (suggestion) `test_default_period_is_10_hz` does not test its stated coupling — it pins a constructor default production never uses (`UserInterface.__init__` always passes `period=` explicitly), so reverting `update_rate` to 20.0 leaves it green. Assert the `OnQueryUserInterface` that `UserInterface.__init__` actually builds. Cross-pass confirmed — `test/test_on_query_user_interface.py:63-66`
+- [x] (suggestion) Headless-test sampling is load-sensitive with a misleading failure message: the sample count is wall-clock-derived (`len(steady) >= 10` can fail under load), and `launch_service.shutdown()` is a no-op while `__loop_from_run_thread is None`, so a slow main thread silently drops the shutdown request and the watchdog blames the code under test. Use a fixed sample count and gate the sampler on the loop being live. Cross-pass confirmed — `test/test_poll_loop_handler_leak.py:87-92`
+- [x] (suggestion) The watchdog's own `launch_service.shutdown()` routes to `emit_event` → `future.result()` with no timeout, which blocks forever in exactly the wedged-loop case the watchdog exists to break. It works only because `ui._close_requested = True` is set on the preceding line — document that ordering or drop the call — `test/test_poll_loop_handler_leak.py:99-102`
+- [x] (suggestion) No test covers the path users actually take: GUI window close / TUI `q` → `on_close()` → `Shutdown` *action*, the only path that bypasses `LaunchService._shutdown()` and leaves `LaunchService.__on_shutdown` as the sole setter of `__shutting_down` — `test/test_poll_loop_handler_leak.py`
+- [x] (suggestion) Qt comment overstates the change: `qt/main.py:76` already calls `super().close()` before `main_window.close()`, so the flag was set before `closeEvent` even pre-change — `ros2launch_gui/api/user_interface.py:161-163`
+- [x] (suggestion) A failed UI teardown surfaces as `LogInfo` plus exit code 0 — consistent with `_safe_callback` by design, but a genuine teardown failure (window left up, terminal left in raw mode) warrants error-level logging — `ros2launch_gui/api/user_interface.py:174-177`
+- [x] (suggestion) The README's new termination story does not cover SIGTERM/SIGQUIT (the run task is cancelled, no Shutdown is emitted, `close()` never runs, TUI leaves the terminal in raw mode) or launch-idle (never fires while the poll chain holds a pending timer future). Both pre-existing — scope the claim or file a follow-up — `README.md:39`
 
 ### Governance
 
@@ -358,7 +358,44 @@ No drift. All seven plan steps landed as written, and both plan-review must-fixe
 
 ### Next actions
 
-- [ ] Address must-fix 1: add the `context.is_shutdown` belt to `OnQueryUserInterface.handle` and cover it with the reproduced sibling-raise scenario as a test
-- [ ] Address must-fix 2 and 3: correct both inaccurate comments (or drop the debug re-raise)
+- [x] Address must-fix 1: add the `context.is_shutdown` belt to `OnQueryUserInterface.handle` and cover it with the reproduced sibling-raise scenario as a test
+- [x] Address must-fix 2 and 3: correct both inaccurate comments (or drop the debug re-raise)
 - [ ] Re-run `/review-code` pre-push after addressing; do not push until the pre-push review is approved
 - [ ] Merge gate: full-scope `ci_local.sh` attestation (no hosted CI in this repo)
+
+## Implementation
+**Status**: complete
+**When**: 2026-08-24 00:26 -04:00
+**By**: Claude Code Agent (Claude Opus)
+
+**Branch**: feature/issue-30 at `7e47460`
+**Addressed**: `## Local Review (Pre-Push)` (2026-08-24 00:12 -04:00, branch at `654a928`) — verdict changes-requested, round 1
+**Commits**: 9b943ae, 7e4847b, ea2f49c, 22581fd, 2b275c0, 7e47460
+
+### Actions
+- [x] (must-fix) Second termination path: `handle()` now returns `None` on `self._ui.close_requested or context.is_shutdown`, with a comment stating why neither condition subsumes the other. New regression test drives a launch description carrying its own raising `OnShutdown` handler — `ros2launch_gui/event_handlers/on_query_user_interface.py:42`, `test/test_poll_loop_handler_leak.py:228`
+- [x] (must-fix) Debug re-raise comment rewritten to describe what launch actually does: `__process_event` has no per-handler `try`, so the raise aborts the remaining `Shutdown` handlers (incl. `LaunchService.__on_shutdown`), skips `_pop_locals()`, and leaves `run()` returning 1 — `ros2launch_gui/api/user_interface.py:180`
+- [x] (must-fix) Test uses the public `LaunchService.context` property; the false "no public accessor" comment is gone — `test/test_poll_loop_handler_leak.py:128`
+- [x] (suggestion) `_on_shutdown` re-entry guard added, matching `_safe_callback`'s. Covered by `test_close_is_not_called_twice_on_shutdown` (debug + raising teardown via the `Shutdown`-action path, which is the only shape that actually re-emits) — `ros2launch_gui/api/user_interface.py:161`
+- [x] (suggestion) Poll-rate tests now assert on the `OnQueryUserInterface` `UserInterface.__init__` actually builds, in both the 10 Hz and 5 Hz debug paths — `test/test_on_query_user_interface.py:80`
+- [x] (suggestion) Headless sampling is a fixed sample count gated on the run loop being live (`spin_count > 0`), not a wall-clock deadline; the short-run failure message now blames the early run, not the code under test — `test/test_poll_loop_handler_leak.py:143`
+- [x] (suggestion) Watchdog ordering documented: `ui._close_requested = True` must precede `launch_service.shutdown()` because that call routes to `emit_event` → `future.result()` with no timeout. Kept the call (the suggestion offered document-or-drop) — `test/test_poll_loop_handler_leak.py:161`
+- [x] (suggestion) New `test_shutdown_completes_via_ui_close_action` covers the path users take: `on_close()` queues a `Shutdown` *action*, bypassing `LaunchService._shutdown()` — `test/test_poll_loop_handler_leak.py:249`
+- [x] (suggestion) Qt note corrected: `qt/main.py`'s `close()` calls `super().close()` before `main_window.close()`, so that path never depended on `_on_shutdown`'s ordering — `ros2launch_gui/api/user_interface.py:172`
+- [x] (suggestion) A failed teardown is now logged at error level via `launch.logging` instead of returning a `LogInfo` action into a UI being torn down — `ros2launch_gui/api/user_interface.py:190`
+- [x] (suggestion) README scopes the termination claim: names both stop conditions, and states what is *not* covered — SIGTERM/SIGQUIT (run task cancelled, no `Shutdown` emitted, TUI left in raw mode) and shutdown-when-idle (never fires while the poll chain holds a pending timer future). Both pre-existing — `README.md:39`
+
+### Verification
+
+- `./underlay_ws/build.sh ros2launch_gui` + `./underlay_ws/test.sh ros2launch_gui`: **32 tests, 0 errors, 0 failures, 1 skipped** (was 27). `ament_flake8` / `ament_pep257` clean.
+- Negative controls, each reverted then restored:
+  - Remove `or context.is_shutdown`: `test_shutdown_completes_when_sibling_shutdown_handler_raises` **fails** on `timed_out` in ~7.5 s (watchdog), not by hanging. Other four tests still pass, confirming the new test is the only thing that covers this path.
+  - Remove the `_on_shutdown` re-entry guard: `test_close_is_not_called_twice_on_shutdown` **fails** with `close_count == 2` in 1.3 s.
+  - Revert `update_rate` to 20.0: `test_production_poll_rate_is_10_hz` **fails** (`0.05 != 0.1`) — the test it replaces stayed green under the same revert.
+- Watchdog budget no longer includes startup: it waits for the loop to go live (bounded by `STARTUP_TIMEOUT`) before starting the shutdown budget, so a loaded machine costs startup time rather than producing a false timeout, and a real hang still fails inside the budget.
+
+### Notes
+
+- `return_code` is asserted as **1** in the sibling-raise test, not 0: launch marks the aborted handler dispatch as an error. The invariant under test is that `run()` returns at all. This is stated in the test.
+- Nothing deferred; every finding was actioned.
+- Commits are grouped by logical change rather than one-per-finding where findings shared a file region (the three `user_interface.py` comment/behaviour fixes land together in `7e4847b`, with the Qt-note correction split out in `2b275c0`). Every commit leaves the suite green.

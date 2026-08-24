@@ -49,6 +49,7 @@ class ProcessList(ttk.Frame):
 
 
 class ProcessIOView(ttk.Frame):
+
     def __init__(self, parent=None, show_process_name: bool = False):
         super().__init__(parent)
 
@@ -71,6 +72,7 @@ class ProcessIOView(ttk.Frame):
 
 
 class ProcessIONotebook(ttk.Frame):
+
     def __init__(self, parent=None):
         super().__init__(parent)
 

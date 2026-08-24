@@ -39,7 +39,9 @@ report, no tracking item; Q3 both test forms; Q4 harden `_close_requested` here.
    (unguarded `Shutdown` handler registration in `TimerAction.execute()`), (b) that
    `close_requested` is now what stops the loop, and (c) that the poll period is
    therefore also a floor on shutdown latency. The comment is the only record of
-   the upstream bug — no upstream issue is filed (Q2).
+   the upstream bug — no upstream issue is filed (Q2). The latency-floor note is
+   repeated at `api/user_interface.py:49`, the line a future rate-changer
+   actually edits (plan-review finding 4).
 2. **Align the poll rate at 10 Hz in both places** (Q1) — `OnQueryUserInterface.__init__`
    default `period: float = 0.2` → `0.1`, and `UserInterface.__init__`
    (`api/user_interface.py:49`) non-debug `update_rate = 20.0` → `10.0`, so the
@@ -58,29 +60,60 @@ report, no tracking item; Q3 both test forms; Q4 harden `_close_requested` here.
    Qt backend, whose `close()` → `closeEvent` → `on_close()` path checks
    `close_requested` to avoid re-emitting `Shutdown`. Base `close()` keeps setting
    the flag (idempotent); the three backends keep calling `super().close()` first.
+   A comment records that the debug re-raise is safe *only because* the flag is set
+   first — the launch service logs a handler exception and continues, so
+   termination rests entirely on `_close_requested` already being True; the
+   ordering, not the `try/except`, is the load-bearing part (plan-review finding 6).
+   `handle()`'s early return also skips `get_pending_actions()`, so an action queued
+   by a UI callback in the same poll as the shutdown event is dropped. Accepted: the
+   only such path, `on_close()`, is flag-guarded and would queue nothing, and the
+   process is shutting down regardless (plan-review finding 7). No code change.
 4. **Unit test** (`test/test_on_query_user_interface.py`) — with a stub UI:
    `handle()` returns a `TimerAction` carrying `cancel_on_shutdown=False`, and
    returns `None` once `close_requested` is set (asserting `spin_once()` was not
-   called). Reading `cancel_on_shutdown` requires the launch-private
-   `_TimerAction__cancel_on_shutdown` attribute — isolate that in one commented
-   helper so the coupling is visible and has a single fix site.
+   called). **Assert the public behaviour, not the private flag** (plan-review
+   finding 3): `execute()` the returned `TimerAction` against a bare
+   `LaunchContext` with a fresh asyncio loop and assert
+   `sum(1 for h in ctx._event_handlers if h.matches(Shutdown())) == 0` — it is 1
+   with the default. Isolated in one commented helper; drain with `action.cancel()`
+   + `run_until_complete(get_asyncio_future())` before closing the loop. Also
+   assert the default `period` is 0.1, so it cannot silently drift from
+   `UserInterface`'s rate again.
 5. **Headless `LaunchService` regression test** (`test/test_poll_loop_handler_leak.py`,
    ~2-3 s) — the test that would actually have caught this. Register a headless
-   `UserInterface` subclass (no-op `spin_once`) at a fast poll period, run
-   `LaunchService.run(shutdown_when_idle=False)` on the main thread with a helper
-   thread that samples `len(context._event_handlers)` repeatedly and then calls
-   `shutdown()`. Assert the handler count is **constant** across samples after
-   startup settles (steady-state symptom = the pegged core), and that `run()`
-   returns. Assert counts, not wall-clock timings — CI-stable. Add a second case
+   `UserInterface` subclass (no-op `spin_once`) via `DisplayUserInterface`'s
+   `ui_launcher` hook at the **real 10 Hz rate** — `UserInterface.__init__` has no
+   poll-period knob and must not grow one to make a test convenient, and ~25 polls
+   in 2.5 s is unambiguous against one leaked handler per poll (plan-review
+   finding 5). Run `LaunchService.run(shutdown_when_idle=False)` on the main thread
+   with a helper thread that samples `len(context._event_handlers)` repeatedly and
+   then calls `shutdown()`. Assert the handler count is **constant** across samples
+   after startup settles (steady-state symptom = the pegged core), that polls
+   actually happened (so the invariant is not vacuous), and that `run()` returns
+   **0**. Assert counts, not wall-clock timings — CI-stable. Add a second case
    where the subclass's `close()` raises before `super().close()`, asserting
    shutdown still completes (step 3's guarantee).
+   **Both cases run under a watchdog** (plan-review finding 2): `launch_service.py:350-360`
+   catches an exception out of an event handler, sets `return_code=1` and
+   *continues*, so pre-hardening the flag is never set and the poll chain
+   reschedules forever. A watchdog thread forces `_close_requested` after a few
+   seconds and the test asserts it did not fire — the regression fails the run
+   instead of hanging it. Asserting `run()` returns 0 (not merely that it returned)
+   is what stops the swallowed-exception path from passing for the wrong reason.
 6. **README** — the "Design" paragraph (line 39) documents the `TimerAction` poll
-   loop; state that the timer is no longer cancelled by launch and the loop
-   self-terminates via `close_requested`.
+   loop; state that the timer is no longer cancelled by launch, that the loop
+   self-terminates via `close_requested`, and — per plan-review finding 8 — name the
+   poll rate (10 Hz; 5 Hz debug) and the resulting shutdown-latency floor.
 7. **Verify** — run the package suite (`colcon test`), including the existing
    `ament_flake8` / `ament_pep257` gates, and re-run the scratchpad harness at
    two durations to confirm handler count is flat and shutdown no longer scales
    with run length.
+   *(Plan-review finding 1 — the red lint baseline that made the `ci_local.sh`
+   merge gate unreachable — was resolved outside this PR: the branch was rebased
+   onto `origin/jazzy` at `047f59d`, which merged the repo-wide lint cleanup
+   (#31/PR #32). `ament_flake8` and `ament_pep257` are clean on the base and this
+   PR keeps them clean, so the full-scope attestation gate is reachable as
+   originally stated. No operator exception is needed.)*
 
 ## Files to Change
 
@@ -88,9 +121,9 @@ report, no tracking item; Q3 both test forms; Q4 harden `_close_requested` here.
 |------|--------|
 | `ros2launch_gui/event_handlers/on_query_user_interface.py` | `cancel_on_shutdown=False` + rationale comment; default `period` 0.2 → 0.1 |
 | `ros2launch_gui/api/user_interface.py` | non-debug `update_rate` 20.0 → 10.0; `_on_shutdown` sets `_close_requested` before `close()` and guards a raising teardown |
-| `test/test_on_query_user_interface.py` | New — fast unit test of `handle()` |
-| `test/test_poll_loop_handler_leak.py` | New — headless `LaunchService` test: handler count constant; shutdown completes even when backend teardown raises |
-| `README.md` | Design paragraph: poll loop self-terminates via `close_requested` |
+| `test/test_on_query_user_interface.py` | New — fast unit test of `handle()`; asserts the rescheduled timer leaves no `Shutdown` handler, via public `matches()` rather than the private `cancel_on_shutdown` attribute |
+| `test/test_poll_loop_handler_leak.py` | New — headless `LaunchService` test at the real 10 Hz: handler count constant, `run()` returns 0, shutdown completes even when backend teardown raises; both cases watchdog-bounded |
+| `README.md` | Design paragraph: poll loop self-terminates via `close_requested`; names the 10 Hz / 5 Hz rates and the shutdown-latency floor |
 
 ## Principles Self-Check
 
@@ -110,7 +143,7 @@ report, no tracking item; Q3 both test forms; Q4 harden `_close_requested` here.
 |---|---|---|
 | 0008 — ROS 2 conventions | Yes | New tests and comments must pass the package's `ament_flake8` / `ament_pep257` tests; match existing style (`test/test_tui_interface.py`) |
 | 0013 — progress.md vocabulary | Yes | `## Plan Authored` entry appended via `progress_append.sh` |
-| 0018 — Local-first CI | Yes (at merge) | Repo has no `.github/` workflows — merge gate is a full-scope `ci_local.sh` attestation on the PR head |
+| 0018 — Local-first CI | Yes (at merge) | Repo has no `.github/` workflows — merge gate is a full-scope `ci_local.sh` attestation on the PR head; reachable now that the lint baseline is green (rebased onto `047f59d`) |
 | 0002 — Worktree isolation | Satisfied | `issue-ros2launch_gui-30`, branch `feature/issue-30` |
 | 0017 — AGENTS.md in project repos | Gap, not this PR | Repo has no root `AGENTS.md` / `.agents/README.md` / pre-commit config — recorded as a follow-up |
 
@@ -124,6 +157,7 @@ report, no tracking item; Q3 both test forms; Q4 harden `_close_requested` here.
 | `OnQueryUserInterface` default period changes | No in-repo caller relies on the default (`api/user_interface.py` always passes an explicit period); grep-verified | Yes |
 | README documents the poll loop | Design paragraph updated | Yes |
 | Repo lacks `AGENTS.md` / `.agents/README.md` / pre-commit | Governance follow-up | No — follow-up, deliberately not fanned out |
+| Poll timer no longer cancelled at shutdown | `_close_requested` must be set before any backend teardown can raise — otherwise the poll chain never stops and shutdown hangs | Yes — step 3, covered by the watchdog-bounded raising-teardown test |
 
 ## Documentation & Instruction Impact
 
@@ -138,7 +172,9 @@ report, no tracking item; Q3 both test forms; Q4 harden `_close_requested` here.
 
 ## Open Questions
 
-- None — Q1-Q4 were decided by the operator and are recorded under Approach.
+- None — Q1-Q4 were decided by the operator and are recorded under Approach. The
+  plan review's two must-fixes are folded into steps 5 and 7 above; its
+  suggestions 3-8 into steps 1, 3, 4, 5 and 6.
 
 ## Estimated Scope
 

@@ -2,9 +2,12 @@ import asyncio
 import unittest
 
 from launch import LaunchContext
+from launch import LaunchDescription
+from launch.actions import RegisterEventHandler
 from launch.actions import TimerAction
 from launch.events import Shutdown
 
+from ros2launch_gui.api import UserInterface
 from ros2launch_gui.event_handlers import OnQueryUserInterface
 from ros2launch_gui.events import QueryUserInterface
 
@@ -23,6 +26,20 @@ class _StubUserInterface:
     def get_pending_actions(self):
         self.pending_actions_calls += 1
         return []
+
+
+def _production_poll_handler(debug: bool) -> OnQueryUserInterface:
+    """Return the OnQueryUserInterface that UserInterface.__init__ builds."""
+    ui = UserInterface(LaunchDescription(), debug=debug)
+    handlers = [
+        action.event_handler
+        for action in ui.get_pending_actions()
+        if isinstance(action, RegisterEventHandler)
+        and isinstance(action.event_handler, OnQueryUserInterface)
+    ]
+    assert len(handlers) == 1, \
+        'expected exactly one poll handler, got {}'.format(len(handlers))
+    return handlers[0]
 
 
 def _count_shutdown_handlers(action: TimerAction) -> int:
@@ -60,10 +77,15 @@ class TestOnQueryUserInterface(unittest.TestCase):
         with self.assertRaises(ValueError):
             OnQueryUserInterface(_StubUserInterface(), period=0.0)
 
-    def test_default_period_is_10_hz(self):
-        # Must agree with UserInterface.__init__'s non-debug update_rate.
-        handler = OnQueryUserInterface(_StubUserInterface())
-        assert handler._period == 0.1
+    def test_production_poll_rate_is_10_hz(self):
+        # Asserting on the constructor default would prove nothing:
+        # UserInterface.__init__ always passes period= explicitly, so a
+        # regression in update_rate would leave that test green. Inspect the
+        # handler production actually builds.
+        assert _production_poll_handler(debug=False)._period == 0.1
+
+    def test_production_debug_poll_rate_is_5_hz(self):
+        assert _production_poll_handler(debug=True)._period == 0.2
 
     def test_handle_polls_ui_and_reschedules(self):
         ui = _StubUserInterface()
@@ -91,6 +113,19 @@ class TestOnQueryUserInterface(unittest.TestCase):
         handler = OnQueryUserInterface(ui, period=0.1)
 
         result = handler.handle(QueryUserInterface(), LaunchContext())
+
+        assert result is None
+        assert ui.spin_count == 0
+
+    def test_handle_stops_when_context_is_shutdown(self):
+        # The second, independent termination path: close_requested is still
+        # False because the UI's own OnShutdown handler never ran.
+        ui = _StubUserInterface(close_requested=False)
+        handler = OnQueryUserInterface(ui, period=0.1)
+        context = LaunchContext()
+        context._set_is_shutdown(True)
+
+        result = handler.handle(QueryUserInterface(), context)
 
         assert result is None
         assert ui.spin_count == 0

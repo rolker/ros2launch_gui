@@ -46,7 +46,7 @@ class UserInterface:
         self._debug = debug
         self._close_requested = False
 
-        update_rate = 5.0 if debug else 20.0
+        update_rate = 5.0 if debug else 10.0
         period = 1.0 / update_rate
 
         self._pending_actions = [

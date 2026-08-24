@@ -8,7 +8,7 @@ from ros2launch_gui.events import QueryUserInterface
 class OnQueryUserInterface(BaseEventHandler):
     """Handle QueryUserInterface events to poll the UI and relay pending actions."""
 
-    def __init__(self, ui, period: float = 0.2):
+    def __init__(self, ui, period: float = 0.1):
         super().__init__(
             matcher=lambda event: isinstance(event, QueryUserInterface)
         )

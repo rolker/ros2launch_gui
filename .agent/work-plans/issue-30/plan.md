@@ -37,7 +37,8 @@ report, no tracking item; Q3 both test forms; Q4 harden `_close_requested` here.
 1. **Stop the leak** — `on_query_user_interface.py`: pass `cancel_on_shutdown=False`
    to the `TimerAction`, with a call-site comment stating (a) the upstream cause
    (unguarded `Shutdown` handler registration in `TimerAction.execute()`), (b) that
-   `close_requested` is now what stops the loop, and (c) that the poll period is
+   `close_requested` (and, per review round 1, `LaunchContext.is_shutdown`) is now
+   what stops the loop, and (c) that the poll period is
    therefore also a floor on shutdown latency. The comment is the only record of
    the upstream bug — no upstream issue is filed (Q2). The latency-floor note is
    repeated at `api/user_interface.py:49`, the line a future rate-changer
@@ -60,10 +61,13 @@ report, no tracking item; Q3 both test forms; Q4 harden `_close_requested` here.
    Qt backend, whose `close()` → `closeEvent` → `on_close()` path checks
    `close_requested` to avoid re-emitting `Shutdown`. Base `close()` keeps setting
    the flag (idempotent); the three backends keep calling `super().close()` first.
-   A comment records that the debug re-raise is safe *only because* the flag is set
-   first — the launch service logs a handler exception and continues, so
-   termination rests entirely on `_close_requested` already being True; the
-   ordering, not the `try/except`, is the load-bearing part (plan-review finding 6).
+   A comment records why the ordering, not the `try/except`, is the load-bearing
+   part (plan-review finding 6). **Corrected in review round 1**: the launch
+   service does *not* log the handler exception and continue —
+   `LaunchService.__process_event` has no per-handler `try`, so a re-raise aborts
+   the remaining `Shutdown` handlers (including `LaunchService.__on_shutdown`),
+   skips the matching `_pop_locals()`, and leaves `run()` returning 1. The comment
+   now says that.
    `handle()`'s early return also skips `get_pending_actions()`, so an action queued
    by a UI callback in the same poll as the shutdown event is dropped. Accepted: the
    only such path, `on_close()`, is flag-guarded and would queue nothing, and the
@@ -115,15 +119,41 @@ report, no tracking item; Q3 both test forms; Q4 harden `_close_requested` here.
    PR keeps them clean, so the full-scope attestation gate is reachable as
    originally stated. No operator exception is needed.)*
 
+8. **Review round 1 follow-through** (`## Local Review (Pre-Push)`, 2026-08-24) —
+   three must-fixes and the actioned suggestions:
+   - **Second termination path** (must-fix 1): `close_requested` alone is not
+     sufficient. `LaunchService.__process_event` iterates handlers with no
+     per-handler `try` and `register_event_handler` appends left, so any sibling
+     `OnShutdown` handler that raises — one in the *user's* launch description,
+     or `ExecuteLocal`'s per-process handler — aborts dispatch before
+     `UserInterface._on_shutdown` runs. Reproduced as a hang. `handle()` now also
+     returns `None` on `context.is_shutdown`, which `LaunchService._shutdown()`
+     sets independently of any handler completing; covered by a new
+     sibling-raise regression test.
+   - **`_on_shutdown` re-entrancy**: a debug re-raise aborts dispatch before
+     `LaunchService.__on_shutdown` sets `__shutting_down`, so `run_async`'s
+     catch-all emits a second `Shutdown` and `close()` ran twice. Added the
+     re-entry guard `_safe_callback` already has.
+   - **Teardown failure logging**: error level instead of a `LogInfo` action
+     emitted into a UI that is being torn down.
+   - **Test accuracy**: use the public `LaunchService.context` property
+     (must-fix 3); assert the poll rate on the handler `UserInterface.__init__`
+     actually builds rather than a constructor default production never uses;
+     replace the wall-clock sample deadline with a fixed sample count gated on
+     the run loop being live, with an honest failure message.
+   - **README scope**: names both stop conditions, and states what the loop's
+     self-termination does *not* cover (SIGTERM/SIGQUIT, shutdown-when-idle) —
+     both pre-existing.
+
 ## Files to Change
 
 | File | Change |
 |------|--------|
-| `ros2launch_gui/event_handlers/on_query_user_interface.py` | `cancel_on_shutdown=False` + rationale comment; default `period` 0.2 → 0.1 |
-| `ros2launch_gui/api/user_interface.py` | non-debug `update_rate` 20.0 → 10.0; `_on_shutdown` sets `_close_requested` before `close()` and guards a raising teardown |
-| `test/test_on_query_user_interface.py` | New — fast unit test of `handle()`; asserts the rescheduled timer leaves no `Shutdown` handler, via public `matches()` rather than the private `cancel_on_shutdown` attribute |
-| `test/test_poll_loop_handler_leak.py` | New — headless `LaunchService` test at the real 10 Hz: handler count constant, `run()` returns 0, shutdown completes even when backend teardown raises; both cases watchdog-bounded |
-| `README.md` | Design paragraph: poll loop self-terminates via `close_requested`; names the 10 Hz / 5 Hz rates and the shutdown-latency floor |
+| `ros2launch_gui/event_handlers/on_query_user_interface.py` | `cancel_on_shutdown=False` + rationale comment; default `period` 0.2 → 0.1; `handle()` also stops on `context.is_shutdown` |
+| `ros2launch_gui/api/user_interface.py` | non-debug `update_rate` 20.0 → 10.0; `_on_shutdown` sets `_close_requested` before `close()` and guards a raising teardown; re-entry guard; error-level teardown logging |
+| `test/test_on_query_user_interface.py` | New — fast unit test of `handle()`; asserts the rescheduled timer leaves no `Shutdown` handler, via public `matches()` rather than the private `cancel_on_shutdown` attribute; pins the poll rate on the handler production builds; covers the `context.is_shutdown` stop path |
+| `test/test_poll_loop_handler_leak.py` | New — headless `LaunchService` test at the real 10 Hz: handler count constant, `run()` returns 0, shutdown completes even when backend teardown raises, when a *sibling* `OnShutdown` handler raises, and via the UI's own `Shutdown` action; `_on_shutdown` re-entrancy; all cases watchdog-bounded, fixed sample count |
+| `README.md` | Design paragraph: poll loop self-terminates via `close_requested` **or** `context.is_shutdown`; names the 10 Hz / 5 Hz rates, the shutdown-latency floor, and the paths not covered (SIGTERM/SIGQUIT, shutdown-when-idle) |
 
 ## Principles Self-Check
 
@@ -152,7 +182,7 @@ report, no tracking item; Q3 both test forms; Q4 harden `_close_requested` here.
 | If we change... | Also update... | Included in plan? |
 |---|---|---|
 | Timer no longer cancelled on shutdown | Shutdown latency gains a bounded floor of one poll period (~100 ms at 10 Hz; 200 ms on the 5 Hz debug path) — stated at the call site and in the PR body | Yes |
-| `close_requested` becomes the only stop path | `_on_shutdown` hardened so a raising backend teardown cannot hang shutdown; all three backends keep calling `super().close()` first | Yes |
+| `close_requested` becomes a stop path | `_on_shutdown` hardened so a raising backend teardown cannot hang shutdown; all three backends keep calling `super().close()` first. It is not the *only* stop path: `context.is_shutdown` is the second, covering a sibling `OnShutdown` handler that raises before the UI's handler runs (review round 1) | Yes |
 | Poll rate 20 Hz → 10 Hz | UI refresh halves; the debug path (5 Hz) is left alone deliberately | Yes |
 | `OnQueryUserInterface` default period changes | No in-repo caller relies on the default (`api/user_interface.py` always passes an explicit period); grep-verified | Yes |
 | README documents the poll loop | Design paragraph updated | Yes |

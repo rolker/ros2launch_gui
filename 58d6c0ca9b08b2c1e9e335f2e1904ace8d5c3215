@@ -1,0 +1,11 @@
+ci-local: pass
+repo: ros2launch_gui
+commit: 58d6c0ca9b08b2c1e9e335f2e1904ace8d5c3215
+image: ros2-agent-workspace-agent:latest
+image-id: sha256:fbf2e8c70d0070da6f86b013ebee15a018a05c872eb51f2e3292cc8d0dd60eff
+packages: ros2launch_gui
+scope: full
+steps: template
+date: 2026-08-24T14:04:42Z
+host: deadpool
+log-sha256: 82a48fcbc3a188212640657d894db85cf341bca84171e04895100be10790c994

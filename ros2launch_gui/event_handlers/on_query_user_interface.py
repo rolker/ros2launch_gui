@@ -93,11 +93,13 @@ class OnQueryUserInterface(BaseEventHandler):
             # either UserInterface.close_requested or LaunchContext.is_shutdown
             # is set. See those comments for why both are needed.
             #
-            # Consequence: the poll period is now also a floor on shutdown
-            # latency — launch waits out the in-flight timer instead of
-            # cancelling it (~100 ms at the 10 Hz default). Any future change
-            # to the poll rate is a change to shutdown latency; see
-            # UserInterface.__init__ where the rate is chosen.
+            # Consequence: the poll period now bounds how much this can ADD
+            # to shutdown latency — launch waits out the in-flight timer
+            # instead of cancelling it, so shutdown is delayed by up to one
+            # period (<= ~100 ms at the 10 Hz default), and often much less
+            # depending on where the timer sits in its period. An upper bound,
+            # not a floor. Any future change to the poll rate changes that
+            # bound; see UserInterface.__init__ where the rate is chosen.
             TimerAction(
                 period=self._period,
                 actions=[EmitEvent(event=QueryUserInterface())],

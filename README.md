@@ -41,6 +41,6 @@ In order for the ui to be able to send events to the launch system, TimerActions
 - `close_requested` — the user interface's own `OnShutdown` handler ran, so it has already torn the backend down. The poll handler only stops rescheduling.
 - `is_shutdown` on the launch context — the user interface's handler did *not* run, typically because a sibling `OnShutdown` handler raised and aborted the whole Shutdown dispatch before it. Nothing has torn the backend down at that point, so the poll handler calls `close()` itself (errors are logged, never raised back into the launch event loop) before it stops rescheduling.
 
-Because the in-flight timer is waited out rather than cancelled, the poll period is also a floor on shutdown latency (~100 ms at 10 Hz).
+Because the in-flight timer is waited out rather than cancelled, shutdown can be delayed by **up to** one poll period (~100 ms at 10 Hz). It is an upper bound, not a floor: the actual wait depends on where the timer is in its period when shutdown arrives, and is often far less — measured shutdowns at 10 Hz land in the single-digit to tens of milliseconds.
 
 This covers every route that emits a `Shutdown` event: Ctrl-C, `LaunchService.shutdown()`, a `Shutdown` action from the UI, and launch's own error path. It does **not** cover SIGTERM/SIGQUIT, where the run task is cancelled without a `Shutdown` event, so `close()` never runs and a TUI leaves the terminal in raw mode; nor shutdown-when-idle, which never fires while the poll chain holds a pending timer future. Both predate this design.

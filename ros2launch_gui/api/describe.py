@@ -59,7 +59,7 @@ class DescribedLaunchEntity:
         if isinstance(launch_entity, IncludeLaunchDescription):
             try:
                 self.children = [DescribedLaunchEntity(launch_entity.launch_description_source.get_launch_description(context)),]
-            except Exception as e:
+            except Exception:
                 self.children = []
         else:
             self.children = [DescribedLaunchEntity(child) for child in launch_entity.describe_sub_entities()]
@@ -77,11 +77,11 @@ class DescribedLaunchEntity:
             for la in launch_entity.launch_arguments:
                 try:
                     la0 = describe_substitution(la[0], context)
-                except Exception as e:
+                except Exception:
                     la0 = str(la[0])
                 try:
                     la1 = describe_substitution(la[1], context)
-                except Exception as e:
+                except Exception:
                     la1 = str(la[1])
                 self.launch_arguments.append((la0, la1))
 

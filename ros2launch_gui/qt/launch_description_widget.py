@@ -142,7 +142,7 @@ class LaunchDescriptionWidget(QWidget):
                     item.setExpanded(True)
                     item.setData(0, self.DetailsCallbackRole, selected_callback)
 
-            if entity.type_name == "LifecycleNode":
+            if entity.type_name == 'LifecycleNode':
                 self.on_state_transition(entity, 'unknown', 'unconfigured')
         else:
             for tree_type in self.tree_types:
@@ -210,7 +210,7 @@ class LaunchDescriptionWidget(QWidget):
                     item.setText(3, str(launch_entity.description))
                     if status is not None:
                         item.setText(1, status)
-                if launch_entity.type_name == "IncludeLaunchDescription":
+                if launch_entity.type_name == 'IncludeLaunchDescription':
                     for child in launch_entity.children:
                         if child.id not in self.entity_items:
                             self.add_launch_entity_to_trees(child, launch_entity)
@@ -252,7 +252,7 @@ class LaunchDescriptionWidget(QWidget):
         else:
             items = {}
             for tree_type in self.tree_types:
-                if tree_type != "simple" or launch_entity.type_name in ("Node", "LifecycleNode"):
+                if tree_type != 'simple' or launch_entity.type_name in ('Node', 'LifecycleNode'):
 
                     status_text = status if status is not None else ''
                     item = QTreeWidgetItem([launch_entity.type_name, status_text, launch_entity.label, str(launch_entity.description), status])
@@ -262,7 +262,7 @@ class LaunchDescriptionWidget(QWidget):
                         if parent.id in self.entity_items:
                             parent_item = self.entity_items[parent.id][tree_type]
                             if parent_item is not None:
-                                if launch_entity.type_name == "DeclareLaunchArgument":
+                                if launch_entity.type_name == 'DeclareLaunchArgument':
                                     if not parent.id in self.launch_arguments_items:
                                         self.launch_arguments_items[parent.id] = QTreeWidgetItem(['Launch Arguments', '', '', ''])
                                         parent_item.addChild(self.launch_arguments_items[parent.id])
@@ -308,7 +308,7 @@ class LaunchDescriptionWidget(QWidget):
         item: QTreeWidgetItem,
         status: str
     ):
-        if launch_entity.type_name == "LifecycleNode":
+        if launch_entity.type_name == 'LifecycleNode':
             item.setData(1, Qt.BackgroundRole, QBrush(QColor(255, 255, 150)))
             if status is None:
                 # assuming lifecycle node is unconfigured until we know otherwise

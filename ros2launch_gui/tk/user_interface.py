@@ -17,11 +17,11 @@ class UserInterface(UserInterfaceBase):
     ):
         super().__init__(launch_description, debug)
         self.root = Tk()
-        self.root.title("ROS 2 Launch GUI")
+        self.root.title('ROS 2 Launch GUI')
         self.root.grid_rowconfigure(0, weight=1)
         self.root.grid_columnconfigure(0, weight=1)
 
-        self.root.protocol("WM_DELETE_WINDOW", self.on_close)
+        self.root.protocol('WM_DELETE_WINDOW', self.on_close)
 
         main_window = ttk.PanedWindow(self.root, orient='horizontal')
         main_window.grid(column=0, row=0, sticky=('N', 'W', 'E', 'S'))

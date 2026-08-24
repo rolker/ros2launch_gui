@@ -25,7 +25,7 @@ class LaunchDescriptionTreeview(ttk.Frame):
 
         self.process_selected_callbacks = []
 
-        self.tree.bind("<<TreeviewSelect>>", self.on_tree_item_selected)
+        self.tree.bind('<<TreeviewSelect>>', self.on_tree_item_selected)
 
 
 
@@ -42,7 +42,7 @@ class LaunchDescriptionTreeview(ttk.Frame):
         if entity.id in self.tree_ids:
             item_id = self.tree_ids[entity.id]
             self.tree.item(item_id, open=True)
-            self.process_ids[process_name] = self.tree.insert(item_id, 'end', text="Process", values=(process_name, 'PID: {}'.format(pid), 'running'))
+            self.process_ids[process_name] = self.tree.insert(item_id, 'end', text='Process', values=(process_name, 'PID: {}'.format(pid), 'running'))
 
     def on_entity_process_exited(self, entity: DescribedLaunchEntity, process_name: str, pid: int, return_code) -> None:
         if process_name in self.process_ids:
@@ -54,7 +54,7 @@ class LaunchDescriptionTreeview(ttk.Frame):
             item_id = self.tree_ids[launch_entity.id]
             status_text = status if status is not None else ''
             self.tree.item(item_id, values=(launch_entity.label, launch_entity.description, status_text))
-            if launch_entity.type_name == "IncludeLaunchDescription":
+            if launch_entity.type_name == 'IncludeLaunchDescription':
                 for child in launch_entity.children:
                     if child.id not in self.tree_ids:
                         self.add_launch_entity_to_tree(child, item_id)

@@ -14,7 +14,7 @@ class MainWindow(QMainWindow):
         super().__init__()
 
         self._ui = ui
-        self.setWindowTitle("ROS 2 Launch GUI")
+        self.setWindowTitle('ROS 2 Launch GUI')
         self.launch_description_widget = LaunchDescriptionWidget(ui, self)
         self.details_widget = DetailsWidget(self)
 

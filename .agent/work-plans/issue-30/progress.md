@@ -222,3 +222,89 @@ all check out, the last one empirically.
 - [ ] Bound the raising-teardown test with a watchdog and assert return code 0
 - [ ] Decide private-attribute read vs. the verified public-behaviour assertion (step 4)
 - [ ] Fold findings 4-8 into the plan inline per plan-task's "During implementation" rules
+
+## Implementation
+**Status**: complete
+**When**: 2026-08-23 23:51 -04:00
+**By**: Claude Code Agent (Claude Opus)
+
+**Plan**: `.agent/work-plans/issue-30/plan.md` (synced at `9453bac`)
+**Branch**: `feature/issue-30` at `9453bac` (rebased onto `origin/jazzy` `047f59d`)
+**PR**: not opened — host publishes after the operator checkpoint. Not pushed.
+
+All seven plan steps landed, with both plan-review must-fixes and all six
+suggestions folded in. Architecture untouched: the launch-driven poll loop and
+its `[TimerAction(...)] + get_pending_actions()` return contract are unchanged.
+
+### Commits (atomic, oldest first)
+
+| SHA | Change |
+|---|---|
+| `d7dc954` | Poll rate aligned at 10 Hz: `OnQueryUserInterface` default `period` 0.2 → 0.1, `UserInterface` non-debug `update_rate` 20.0 → 10.0 (debug stays 5.0) |
+| `0947c9c` | Core fix: `cancel_on_shutdown=False` on the rescheduled `TimerAction`, with the upstream-cause comment at the call site and the latency-floor note repeated at `api/user_interface.py` |
+| `24400a1` | `_on_shutdown` sets `_close_requested` before `close()` and guards a raising teardown (re-raise under `_debug`, else `LogInfo`) |
+| `5bd8996` | Two regression tests |
+| `0fc4e9b` | README Design paragraph |
+| `9453bac` | plan.md synced |
+
+### Must-fix 1 — raising-teardown test fails, does not hang
+
+Both headless cases run under a watchdog thread: if `run()` has not returned
+`RUN_SECONDS + 5 s` after start, the watchdog sets `ui._close_requested`
+directly to break the poll chain, records `timed_out`, and calls
+`shutdown()`. The test asserts `not timed_out` **and** `run() == 0` — the
+second assertion is what stops the swallowed-exception path
+(`launch_service.py:350-360` sets `return_code=1` and continues) from passing
+for the wrong reason. Verified by reverting the `_on_shutdown` hardening: the
+case fails in ~8 s with "shutdown hung after a raising backend teardown"
+rather than hanging.
+
+### Must-fix 2 — public assertion, not the private attribute
+
+`_count_shutdown_handlers()` executes the returned `TimerAction` against a
+bare `LaunchContext` with a fresh asyncio loop and counts
+`h.matches(Shutdown())` over `ctx._event_handlers`, draining with
+`action.cancel()` + `run_until_complete(get_asyncio_future())` before
+`loop.close()` (no pending-task warning). Measured directly: 1 with the
+default, 0 with `cancel_on_shutdown=False`. No
+`_TimerAction__cancel_on_shutdown` read anywhere.
+
+Other plan-review items: the latency-floor comment is at
+`api/user_interface.py` on the `update_rate` line; the headless test uses the
+real 10 Hz via `DisplayUserInterface`'s `ui_launcher` hook and adds no
+poll-period knob; the `_on_shutdown` comment states that the debug re-raise is
+safe *only because* the flag is set first; the dropped-`get_pending_actions`
+case is recorded as accepted in plan step 3; the README names the rates and the
+latency floor.
+
+### Verification
+
+`./underlay_ws/build.sh ros2launch_gui` clean. `./underlay_ws/test.sh
+ros2launch_gui` → **27 tests, 0 errors, 0 failures, 1 skipped** (baseline 20;
++7 new). `ament_flake8` and `ament_pep257` both pass — the base was clean
+after the rebase and stayed clean.
+
+Negative controls (each fix reverted in turn, then restored):
+
+- Without `cancel_on_shutdown=False`: `test_rescheduled_timer_registers_no_shutdown_handler` fails (`assert 1 == 0`) and `test_handler_count_is_constant_while_polling` fails.
+- Without the `_on_shutdown` hardening: `test_shutdown_completes_when_backend_teardown_raises` fails in ~8 s via the watchdog.
+
+Repro harness (`.agent/scratchpad/ros2launch_gui_timer_leak_test.py`) at 10 Hz,
+two durations:
+
+| Run | `cancel_on_shutdown` | Polls | Registered handlers | Shutdown |
+|---|---|---|---|---|
+| 15 s | True (before) | 148 | 153 | 0.045 s |
+| 15 s | False (after) | 149 | **5** | 0.021 s |
+| 60 s | True (before) | 579 | 584 | 0.412 s |
+| 60 s | False (after) | 596 | **5** | 0.008 s |
+
+Handler count is flat at 5 regardless of run length; shutdown no longer scales
+with session length (4x the duration was 9.2x the shutdown time before, and is
+unrelated to duration after).
+
+### Actions
+- [ ] Run `/review-code` pre-push before opening the PR
+- [ ] Push and open the PR (host publishes after the operator checkpoint) — PR body should note the halved UI refresh rate (20 Hz → 10 Hz)
+- [ ] Merge gate: full-scope `ci_local.sh` attestation (no hosted CI in this repo)
+- [ ] Follow-up candidate (not this PR): repo lacks root `AGENTS.md` / `.agents/README.md` / pre-commit config

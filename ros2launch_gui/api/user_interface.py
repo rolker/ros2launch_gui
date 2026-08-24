@@ -46,6 +46,12 @@ class UserInterface:
         self._debug = debug
         self._close_requested = False
 
+        # This rate is also a floor on shutdown latency. The UI poll timer
+        # runs with cancel_on_shutdown=False (see OnQueryUserInterface.handle
+        # for why), so launch waits out the in-flight timer rather than
+        # cancelling it: shutdown takes up to one period (~100 ms at 10 Hz,
+        # 200 ms on the 5 Hz debug path). Lowering the rate slows shutdown by
+        # the same amount.
         update_rate = 5.0 if debug else 10.0
         period = 1.0 / update_rate
 

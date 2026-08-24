@@ -19,7 +19,9 @@ class DisplayUserInterface(Action):
             self,
             *,
             launch_description: LaunchDescription,
-            ui_launcher: Callable[[LaunchDescription, LaunchContext, bool], UserInterface] = create_default_user_interface,
+            ui_launcher: Callable[
+                [LaunchDescription, LaunchContext, bool], UserInterface
+            ] = create_default_user_interface,
             debug: bool = False
     ):
         """

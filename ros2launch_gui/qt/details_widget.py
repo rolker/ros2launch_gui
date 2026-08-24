@@ -35,7 +35,8 @@ class DetailsWidget(QWidget):
             process_output_widget.hide()
             self.layout.addWidget(process_output_widget)
 
-        process_output_widget.on_process_io(process_name, f'Process {pid} started for {process_name}')
+        process_output_widget.on_process_io(
+            process_name, f'Process {pid} started for {process_name}')
 
     def on_process_io(self, process_name, text):
         self.all_process_output_widget.on_process_io(process_name, text)
@@ -44,7 +45,8 @@ class DetailsWidget(QWidget):
 
     def on_process_exited(self, process_name, return_code):
         if process_name in self.process_output_widgets:
-            self.process_output_widgets[process_name].on_process_io(process_name, f'Process exited with return code {return_code}')
+            self.process_output_widgets[process_name].on_process_io(
+                process_name, f'Process exited with return code {return_code}')
 
     def show_all_processes_output(self):
         self.current_widget.hide()

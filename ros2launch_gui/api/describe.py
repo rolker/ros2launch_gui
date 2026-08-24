@@ -57,16 +57,23 @@ class DescribedLaunchEntity:
 
         self.conditional_children = []
 
-        # IncludeLaunchDescription's describe_sub_entities() method returns temporary entities with different ids than the entities actually run, so try to get the real ones.
+        # IncludeLaunchDescription's describe_sub_entities() method returns temporary
+        # entities with different ids than the entities actually run, so try to get
+        # the real ones.
         if isinstance(launch_entity, IncludeLaunchDescription):
             try:
-                self.children = [DescribedLaunchEntity(launch_entity.launch_description_source.get_launch_description(context)),]
+                self.children = [
+                    DescribedLaunchEntity(
+                        launch_entity.launch_description_source.get_launch_description(context)),
+                ]
             except Exception:
                 self.children = []
         else:
-            self.children = [DescribedLaunchEntity(child) for child in launch_entity.describe_sub_entities()]
+            self.children = [
+                DescribedLaunchEntity(child) for child in launch_entity.describe_sub_entities()]
             for condition, sub_entities in launch_entity.describe_conditional_sub_entities():
-                self.conditional_children.append((condition, [DescribedLaunchEntity(child) for child in sub_entities]))
+                self.conditional_children.append(
+                    (condition, [DescribedLaunchEntity(child) for child in sub_entities]))
 
         self.condition = None
         if isinstance(launch_entity, Action):
@@ -106,14 +113,16 @@ class DescribedLaunchEntity:
                 self.label = launch_entity.node_name
             except RuntimeError:
                 pass
-            self.description = 'package: {}, executable: {}'.format(launch_entity.node_package, launch_entity.node_executable)
+            self.description = 'package: {}, executable: {}'.format(
+                launch_entity.node_package, launch_entity.node_executable)
 
         elif isinstance(launch_entity, PushRosNamespace):
             self.label = describe_substitution(launch_entity.namespace, context)
             self.description = describe_substitution(launch_entity.namespace, None)
 
     def __repr__(self):
-        return 'id: {} ({}) name: {} desc: {}'.format(self.id, self.type_name, self.label, self.description)
+        return 'id: {} ({}) name: {} desc: {}'.format(
+            self.id, self.type_name, self.label, self.description)
 
 
 def describe_condition(condition: Condition, context: LaunchContext) -> str:

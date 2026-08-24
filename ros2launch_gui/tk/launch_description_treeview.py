@@ -37,22 +37,40 @@ class LaunchDescriptionTreeview(ttk.Frame):
     def on_execution_complete(self, entity: DescribedLaunchEntity) -> None:
         self.updated_launch_entity(entity, status='done')
 
-    def on_entity_process_started(self, entity: DescribedLaunchEntity, process_name: str, pid: int) -> None:
+    def on_entity_process_started(
+            self,
+            entity: DescribedLaunchEntity,
+            process_name: str,
+            pid: int
+    ) -> None:
         if entity.id in self.tree_ids:
             item_id = self.tree_ids[entity.id]
             self.tree.item(item_id, open=True)
-            self.process_ids[process_name] = self.tree.insert(item_id, 'end', text='Process', values=(process_name, 'PID: {}'.format(pid), 'running'))
+            self.process_ids[process_name] = self.tree.insert(
+                item_id,
+                'end',
+                text='Process',
+                values=(process_name, 'PID: {}'.format(pid), 'running'))
 
-    def on_entity_process_exited(self, entity: DescribedLaunchEntity, process_name: str, pid: int, return_code) -> None:
+    def on_entity_process_exited(
+            self,
+            entity: DescribedLaunchEntity,
+            process_name: str,
+            pid: int,
+            return_code
+    ) -> None:
         if process_name in self.process_ids:
             item_id = self.process_ids[process_name]
-            self.tree.item(item_id, values=(process_name, 'PID: {}'.format(pid), 'exit: {}'.format(return_code)))
+            self.tree.item(
+                item_id,
+                values=(process_name, 'PID: {}'.format(pid), 'exit: {}'.format(return_code)))
 
     def updated_launch_entity(self, launch_entity: DescribedLaunchEntity, status=None):
         if launch_entity.id in self.tree_ids:
             item_id = self.tree_ids[launch_entity.id]
             status_text = status if status is not None else ''
-            self.tree.item(item_id, values=(launch_entity.label, launch_entity.description, status_text))
+            self.tree.item(
+                item_id, values=(launch_entity.label, launch_entity.description, status_text))
             if launch_entity.type_name == 'IncludeLaunchDescription':
                 for child in launch_entity.children:
                     if child.id not in self.tree_ids:
@@ -72,7 +90,8 @@ class LaunchDescriptionTreeview(ttk.Frame):
             item_id = self.tree.insert(parent, 'end', text=launch_entity.type_name, open=True)
             self.tree_ids[launch_entity.id] = item_id
         status_text = status if status is not None else ''
-        self.tree.item(item_id, values=(launch_entity.label, launch_entity.description, status_text))
+        self.tree.item(
+            item_id, values=(launch_entity.label, launch_entity.description, status_text))
         for child in launch_entity.children:
             self.add_launch_entity_to_tree(child, item_id)
 

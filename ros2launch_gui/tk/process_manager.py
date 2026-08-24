@@ -25,7 +25,8 @@ class ProcessList(ttk.Frame):
 
     def get_item_id(self, process_name: str) -> str:
         if process_name not in self.tree_ids:
-            self.tree_ids[process_name] = self.tree.insert('', 'end', text=process_name, values=(0, 'unknown'))
+            self.tree_ids[process_name] = self.tree.insert(
+                '', 'end', text=process_name, values=(0, 'unknown'))
         return self.tree_ids[process_name]
 
     def on_process_started(
@@ -116,7 +117,8 @@ class ProcessIONotebook(ttk.Frame):
             io_widget = ProcessIOView(self)
             self.io_widgets[process_name] = io_widget
             self.notebook.add(io_widget, text=process_name)
-        io_widget.on_process_io(process_name, 'Process {} started for action: {}\n'.format(pid, action))
+        io_widget.on_process_io(
+            process_name, 'Process {} started for action: {}\n'.format(pid, action))
 
     def on_process_exited(
             self,
@@ -127,11 +129,13 @@ class ProcessIONotebook(ttk.Frame):
     ) -> None:
         if process_name in self.io_widgets:
             io_widget = self.io_widgets[process_name]
-            io_widget.on_process_io(process_name, 'Process {} exited with return code: {}\n'.format(pid, return_code))
+            io_widget.on_process_io(
+                process_name,
+                'Process {} exited with return code: {}\n'.format(pid, return_code))
 
 
 class ProcessManager(ttk.Frame):
-    """A widget that displays a list of launch processes as well as their output in a tabbed display."""
+    """A widget that displays a list of launch processes and their output in a tabbed display."""
 
     def __init__(self, parent=None):
         super().__init__(parent)

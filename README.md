@@ -32,6 +32,34 @@ or
 
 This is a work in progress...
 
+### Launcher
+
+One window to start and stop the launch files of a workspace and read their logs.
+
+    ros2 run ros2launch_gui launcher              # start page: pick a workspace
+    ros2 run ros2launch_gui launcher ~/my_ws      # open a workspace directly
+    ros2 run ros2launch_gui launcher ~/my_ws --all  # also list /opt/ros packages
+
+The workspace must be built. The launcher sources its `install/setup.bash` itself, after
+`~/.bashrc`, as a new terminal would.
+
+To add it to the applications menu and get a `ros2-launcher [~/my_ws]` command that needs no
+sourcing:
+
+    ros2 run ros2launch_gui launcher --install-desktop-entry
+
+Usage:
+
+- Expand a launch file to see its arguments; double-click a value to edit it.
+- Right-click a launch file to Start, Stop or Restart it. Grey: stopped, green: running,
+  amber: stopping, red: failed.
+- Expand a running launch to stop a single process or change a lifecycle node's state.
+- Right pane: logs of all launches, or of the selection. Type to highlight, Enter to filter.
+- F5 reloads the workspace after a build. File → New window opens another workspace.
+
+Each launch runs in its own process group; Stop, or closing the window, ends everything it
+started.
+
 ## Design
 
 The system interfaces with the launch system using the DisplayUserInterface action. This action will create a user interface and return actions from it. It also contains the LaunchDescription to display.

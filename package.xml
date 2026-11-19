@@ -11,6 +11,7 @@
   <depend>python3-urwid</depend>
   <depend>ros2launch</depend>
 
+  <exec_depend>ament_index_python</exec_depend>
   <exec_depend>launch</exec_depend>
 
   <test_depend>ament_copyright</test_depend>

@@ -23,5 +23,8 @@ setup(
           'gui = ros2launch_gui.option.gui:GuiOption',
           'tui = ros2launch_gui.option.tui:TuiOption',
         ],
+        'console_scripts': [
+          'launcher = ros2launch_gui.launcher.main:main',
+        ],
     },
 )
